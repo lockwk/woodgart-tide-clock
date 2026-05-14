@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>Santa Cruz Tide Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  * { cursor: none !important; }
+
+  html, body {
+    width: 1280px;
+    background: #000;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+  }
+
+
+  #clock {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+    background: #000;
+    transition: opacity 0.6s ease;
+  }
+  #clock.no-data { opacity: 0.2; }
+
+  /* ─── HEADER: left 32, top 32, width 1216, height 16 ─── */
+  #header {
+    position: absolute;
+    left: 32px;
+    top: 32px;
+    width: 1216px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Left group: time + date */
+  #header-left {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 5.6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  #header-time { color: #ff912d; }
+  #header-date { color: #fff; }
+
+  /* Right group: wind + water temp */
+  #header-right {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .header-stat {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 5.6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
+    color: #fff;
+  }
+
+  .header-stat img,
+  .header-stat svg {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  /* ─── TIDE GRAPH: left 32, top 80, width 1216, height 334 ─── */
+  /*     32 (pad) + 16 (header) + 32 (gap) = 80                  */
+  #tide-graph-zone {
+    position: absolute;
+    left: 32px;
+    top: 80px;
+    width: 1216px;
+    height: 334px;
+    overflow: hidden;
+  }
+
+  /* Shaded background: only 303px (hour labels sit in the remaining 31px) */
+  #tide-graph-bg {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1216px;
+    height: 303px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  #tide-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+  }
+
+  /* ─── BOTTOM ROW: top 414, height 306 ─── */
+  /*     80 (graph top) + 334 (graph h) = 414; no gap            */
+  #bottom-row {
+    position: absolute;
+    left: 0;
+    top: 414px;
+    width: 1280px;
+    height: 306px;
+    display: flex;
+    border-top: 1px solid #3a3a3a;
+  }
+
+  /* ─── PANELS: each 320 × 306px ─── */
+  .panel {
+    position: relative;
+    width: 320px;
+    height: 306px;
+    flex-shrink: 0;
+    background: #000;
+    border-right: 1px solid #3a3a3a;
+    overflow: hidden;
+  }
+  .panel:last-child { border-right: none; }
+
+  /* ─── NEXT TIDE PANEL ─── */
+  .next-height {
+    position: absolute;
+    left: calc(50% + 0.5px);
+    top: 51px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;          /* gap between '-' sign and ft/in group (negative state) */
+    white-space: nowrap;
+  }
+
+  .next-height-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;         /* gap between ft block and in block */
+  }
+
+  .next-height-ft { display: flex; align-items: center; gap: 11px; }
+  .next-height-in { display: flex; align-items: center; gap: 8px; }
+
+  .next-num {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 48px;
+    line-height: 1;
+    letter-spacing: -0.96px;
+    color: #fff;
+  }
+
+  .next-unit {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1;
+    letter-spacing: 5.6px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .next-direction {
+    position: absolute;
+    left: calc(50% + 1px);
+    /* top set inline per state: calc(50%-9px) for high/negative, calc(50%-15px) for low */
+    transform: translate(-50%, -50%);
+    width: 49px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .next-time-display {
+    position: absolute;
+    left: 160px;
+    top: calc(50% + 56px);
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 48px;
+    line-height: 1;
+    letter-spacing: -0.96px;
+    color: #fff;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .next-label {
+    position: absolute;
+    left: 159px;
+    top: 249px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1;
+    letter-spacing: 5.6px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.5);
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  /* ─── SUNRISE / SUNSET PANEL ─── */
+  #panel-sun {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 51px 46px;
+  }
+
+  .sun-content {
+    display: flex;
+    flex-direction: column;
+    gap: 64px;
+    width: 246px;
+  }
+
+  .sun-row {
+    display: flex;
+    flex-direction: column;
+    height: 70px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Icon + time centered together with 16px gap */
+  .sun-row-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .sun-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sun-time {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 48px;
+    line-height: 1;
+    letter-spacing: -0.96px;
+    color: #fff;
+    white-space: nowrap;
+  }
+
+  .sun-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1;
+    letter-spacing: 5.6px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    width: 100%;
+  }
+
+  /* ─── MOON PHASE PANEL ─── */
+  .moon-image {
+    position: absolute;
+    left: calc(50% + 0.5px);
+    top: calc(50% - 57px);
+    transform: translate(-50%, -50%);
+    width: 128px;
+    height: 128px;
+  }
+
+  .moon-age {
+    position: absolute;
+    left: calc(50% + 0.5px);
+    top: 209px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 48px;
+    line-height: 1;
+    letter-spacing: -0.96px;
+    color: #fff;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .moon-label {
+    position: absolute;
+    left: 50%;
+    top: 248px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1;
+    letter-spacing: 5.6px;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  /* ─── TIDE CYCLE PANEL ─── */
+  .tide-cycle-curve {
+    position: absolute;
+    left: calc(50% + 0.5px);
+    top: calc(50% - 57px);
+    transform: translate(-50%, -50%);
+    width: 128px;
+    height: 128px;
+  }
+
+  .tide-cycle-code {
+    position: absolute;
+    left: calc(50% - 0.5px);
+    top: 210px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 48px;
+    line-height: 1;
+    letter-spacing: -0.96px;
+    color: #fff;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .tide-cycle-label {
+    position: absolute;
+    left: calc(50% - 1px);
+    top: 249px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1;
+    letter-spacing: 5.6px;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div id="clock" class="no-data">
+
+  <div id="header">
+
+    <!-- Left: time + date -->
+    <div id="header-left">
+      <span id="header-time">10:30 AM</span>
+      <span id="header-date"></span>
+    </div>
+
+    <!-- Right: wind + water temp -->
+    <div id="header-right">
+
+      <!-- Since last rain — visibility:hidden when DATA.rain is null (preserves wind/temp position) -->
+      <div class="header-stat" id="rain-stat" style="visibility: hidden;">
+        <div style="display:flex;align-items:center;flex-shrink:0;width:15px;height:24px;">
+          <svg width="15" height="24" viewBox="0 0 15 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path opacity="0.5" d="M7.22754 0C7.54604 0.000893666 7.83607 0.181901 7.97754 0.466797C8.63996 1.80377 14.4502 13.6191 14.4502 16.7754C14.4501 20.7592 11.2091 23.9998 7.22559 24C3.24193 24 0.000133734 20.7589 0 16.7754C0 13.4674 5.81161 1.78607 6.47461 0.463867C6.61734 0.179681 6.90781 0 7.22559 0H7.22754ZM7.22168 3.31152C5.2997 7.27007 2.00047 14.49 2 16.5293C2 19.41 4.34439 21.7549 7.22559 21.7549C10.1062 21.7547 12.4502 19.4099 12.4502 16.5293C12.4497 14.743 9.54187 8.12066 7.22168 3.31152Z" fill="white"/></svg>
+        </div>
+        <span id="header-rain"></span>
+      </div>
+
+      <!-- Wind — inline SVG from exported wind.svg -->
+      <div class="header-stat">
+        <svg width="47" height="27" viewBox="0 0 47 27" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g opacity="0.5">
+<path d="M5.5 15H40C42.5 15 45.5 17.3 45.5 20.5C45.5 24.5 42.5 26 40 26C37.5 26 34.5 24 34.5 20.5" stroke="white" stroke-width="2" stroke-linecap="round"/>
+<path d="M1 8.5H24C26 8.5 27.5 6.5 27.5 4.5C27.5 2.5 25.8595 1 24 1C22.1405 1 20.5 2.5 20.5 4.5" stroke="white" stroke-width="2" stroke-linecap="round"/>
+</g>
+        </svg>
+        <span id="header-wind">--</span>
+      </div>
+
+      <!-- Water temp — inline SVG from exported waves.svg -->
+      <div class="header-stat">
+        <svg width="48" height="13" viewBox="0 0 48 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path opacity="0.5" d="M46.0781 7.55207C46.4665 7.09178 47.1546 7.03588 47.6133 7.42317C48.0735 7.8115 48.1308 8.49814 47.7432 8.95735C45.5054 11.6047 42.3683 13.0052 38.6689 13.0052C35.8571 13.0052 33.3513 12.0805 31.7051 10.4818C29.9985 12.0614 27.39 13.0051 24.5771 13.0052C21.7168 13.0052 19.0763 12.0423 17.3691 10.431C15.6457 12.023 12.9282 13.0051 10.0664 13.0052C5.75917 13.0052 2.46049 11.7151 0.264649 9.17121C-0.128387 8.71582 -0.0779207 8.02775 0.377931 7.63508C0.833332 7.24135 1.52134 7.293 1.91406 7.74836C3.67793 9.79093 6.42064 10.8265 10.0664 10.8265C12.7663 10.8264 15.3469 9.75421 16.4893 8.15949C16.6935 7.87413 17.0232 7.70353 17.375 7.70344C17.7269 7.70344 18.0569 7.87454 18.2617 8.16047C19.4182 9.77994 21.8971 10.8265 24.5771 10.8265C27.2213 10.8265 29.6817 9.79221 30.8447 8.19074C31.0528 7.90481 31.3782 7.75464 31.7393 7.74153C32.0922 7.74588 32.422 7.92134 32.623 8.21223C33.737 9.82451 36.0543 10.8264 38.6699 10.8265C41.7509 10.8265 44.2429 9.72444 46.0781 7.55207ZM2.14063 0.225901C2.61723 -0.140128 3.30232 -0.0523921 3.66895 0.424143C5.22907 2.45218 7.3814 3.48078 10.0664 3.48078C12.7658 3.48067 15.3469 2.40852 16.4893 0.813791C16.6935 0.528428 17.0232 0.357827 17.375 0.357737C17.7269 0.357737 18.0574 0.528784 18.2617 0.814768C19.4188 2.43414 21.8977 3.48076 24.5771 3.48078C27.2213 3.48078 29.6817 2.44651 30.8447 0.845041C31.0528 0.559658 31.3782 0.391533 31.7393 0.395823C32.0922 0.400181 32.422 0.57564 32.623 0.866526C33.737 2.47882 36.0542 3.48072 38.6699 3.48078C41.1959 3.48078 43.1977 2.53442 44.6211 0.66926C44.9861 0.190024 45.6697 0.0987154 46.1484 0.464182C46.6273 0.829152 46.7185 1.51325 46.3535 1.99153C44.521 4.39199 41.8643 5.66047 38.6689 5.66047C35.8571 5.66044 33.3513 4.73575 31.7051 3.13703C29.9985 4.71659 27.3899 5.66037 24.5771 5.66047C21.7173 5.66047 19.0763 4.69659 17.3691 3.08528C15.6457 4.67745 12.9283 5.66038 10.0664 5.66047C6.71796 5.66047 3.90736 4.31002 1.94141 1.75422C1.57427 1.27705 1.66402 0.593059 2.14063 0.225901Z" fill="white"/>
+        </svg>
+        <span id="header-temp">--</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="tide-graph-zone">
+    <div id="tide-graph-bg"></div>
+    <canvas id="tide-canvas" width="1216" height="334"></canvas>
+  </div>
+
+  <div id="bottom-row">
+    <div class="panel" id="panel-next-tide"></div>
+    <div class="panel" id="panel-tide-cycle"></div>
+    <div class="panel" id="panel-sun"></div>
+    <div class="panel" id="panel-moon"></div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────
+//  SVG ASSETS (inlined from _figmaExports)
+// ─────────────────────────────────────────────────────
+const SVG_RAIN = `<svg width="15" height="24" viewBox="0 0 15 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path opacity="0.5" d="M7.22754 0C7.54604 0.000893666 7.83607 0.181901 7.97754 0.466797C8.63996 1.80377 14.4502 13.6191 14.4502 16.7754C14.4501 20.7592 11.2091 23.9998 7.22559 24C3.24193 24 0.000133734 20.7589 0 16.7754C0 13.4674 5.81161 1.78607 6.47461 0.463867C6.61734 0.179681 6.90781 0 7.22559 0H7.22754ZM7.22168 3.31152C5.2997 7.27007 2.00047 14.49 2 16.5293C2 19.41 4.34439 21.7549 7.22559 21.7549C10.1062 21.7547 12.4502 19.4099 12.4502 16.5293C12.4497 14.743 9.54187 8.12066 7.22168 3.31152Z" fill="white"/></svg>`;
+
+const SVG_HIGH_TIDE = `<svg width="49" height="26" viewBox="0 0 49 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M13 0L24.2583 19.5H1.74167L13 0Z" fill="white"/>
+  <path d="M36 0L47.2583 19.5H24.7417L36 0Z" fill="white"/>
+</svg>`;
+
+const SVG_LOW_TIDE = `<svg width="49" height="26" viewBox="0 0 49 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M13 26L24.2583 6.5H1.74167L13 26Z" fill="white"/>
+  <path d="M36 26L47.2583 6.5H24.7417L36 26Z" fill="white"/>
+</svg>`;
+
+const SVG_SUNRISE = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="10" cy="10" r="9" fill="white" stroke="white" stroke-width="2"/>
+<path d="M17.2085 10.3475C17.5256 10.5809 18.0002 10.3939 18.0002 10.0002C18.0002 5.58201 14.4184 2.00032 10.0002 2.00022C5.5819 2.00022 2.00018 5.58195 2.00018 10.0002C2.00019 10.3938 2.47284 10.5809 2.78984 10.3476C3.98941 9.46504 6.50652 8.00022 10.0002 8.00022C13.4928 8.00029 16.0088 9.46469 17.2085 10.3475Z" fill="black"/>
+</svg>`;
+
+const SVG_SUNSET = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="10" cy="10" r="9" transform="rotate(-180 10 10)" fill="white" stroke="white" stroke-width="2"/>
+<path d="M2.79049 9.65291C2.47346 9.41963 1.99982 9.60668 1.99982 10.0003C1.99994 14.4184 5.5817 18.0002 9.99982 18.0003C14.418 18.0003 17.9997 14.4185 17.9998 10.0003C17.9998 9.60673 17.5272 9.41962 17.2101 9.65285C16.0104 10.5355 13.4933 12.0003 9.99982 12.0003C6.50681 12.0002 3.99017 10.5356 2.79049 9.65291Z" fill="black"/>
+</svg>`;
+
+const SVG_MOON = {
+  'NEW MOON': `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="64" cy="64" r="63.25" stroke="#444444" stroke-width="1.5"/></svg>`,
+  'WAXING CRESCENT': `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill="white" d="M64,0 A64,64 0 0,1 64,128 C79.464,128 92,99.3462 92,64 C92,28.6538 79.464,0 64,0 Z"/></svg>`,
+  'FIRST QUARTER': `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M64 128C80.9739 128 97.2525 121.257 109.255 109.255C121.257 97.2525 128 80.9739 128 64C128 47.0261 121.257 30.7475 109.255 18.7452C97.2525 6.74284 80.9739 -2.02411e-07 64 0L64 64L64 128Z" fill="white"/></svg>`,
+  'WAXING GIBBOUS': `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M64 128C80.9739 128 97.2525 121.257 109.255 109.255C121.257 97.2525 128 80.9739 128 64C128 47.0261 121.257 30.7475 109.255 18.7452C97.2525 6.74284 80.9739 -2.02411e-07 64 0L64 64L64 128Z" fill="white"/><ellipse cx="28" cy="64" rx="28" ry="64" transform="matrix(-1 0 0 1 92 0)" fill="white"/></svg>`,
+  'FULL MOON': `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="64" cy="64" r="64" fill="white"/></svg>`,
+  'WANING GIBBOUS': `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M64 128C47.0261 128 30.7475 121.257 18.7452 109.255C6.74284 97.2525 -4.72181e-07 80.9739 0 64C4.72181e-07 47.0261 6.74284 30.7475 18.7452 18.7452C30.7475 6.74284 47.0261 -2.02411e-07 64 0L64 64L64 128Z" fill="white"/><ellipse cx="64" cy="64" rx="28" ry="64" fill="white"/></svg>`,
+  'LAST QUARTER': `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M64 128C47.0261 128 30.7475 121.257 18.7452 109.255C6.74284 97.2525 -4.72181e-07 80.9739 0 64C4.72181e-07 47.0261 6.74284 30.7475 18.7452 18.7452C30.7475 6.74284 47.0261 -2.02411e-07 64 0L64 64L64 128Z" fill="white"/></svg>`,
+  'WANING CRESCENT': `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill="white" d="M64,0 A64,64 0 0,0 64,128 C48.536,128 36,99.3462 36,64 C36,28.6538 48.536,0 64,0 Z"/></svg>`,
+};
+
+const SVG_SPRING_TIDE_CURVE = `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 102C25.098 102 37.6471 27 64 27C90.3529 27 102.902 102 128 102" stroke="white" stroke-opacity="0.5" stroke-width="2.5"/>
+<circle cx="64" cy="28" r="8" fill="white"/>
+</svg>`;
+
+const SVG_HALF_TIDE_CURVE = `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 102C25.098 102 37.6471 56 64 56C90.3529 56 102.902 102 128 102" stroke="white" stroke-opacity="0.5" stroke-width="2.5"/>
+<circle cx="64" cy="56" r="8" fill="white"/>
+</svg>`;
+
+const SVG_NEAP_TIDE_CURVE = `<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 102C25.098 102 37.6471 84 64 84C90.3529 84 102.902 102 128 102" stroke="white" stroke-opacity="0.5" stroke-width="2.5"/>
+<circle cx="64" cy="84" r="8" fill="white"/>
+</svg>`;
+
+// ─────────────────────────────────────────────────────
+//  DUMMY DATA — Mon Apr 20 2026, Santa Cruz NOAA #9413745
+// ─────────────────────────────────────────────────────
+const DATA = {
+  graphDate:  '2026-04-20',
+  sunrise:    null,
+  sunset:     null,
+  waterTempF: null,
+  windDir:    null,
+  windMph:    null,
+  // moonAge, moonPhase, tideCycle → computed live in init() from current date
+  // Full sequence including bracketing tides outside the window
+  tides: [],
+
+  // ── RAIN  (populated by fetchRainData each hour) ──────────────────
+  // null  → feature hidden (no qualifying rain in past 120 hours)
+  // object → { hoursSince: <integer hours>, lastAmountIn: <float, 1 decimal>, display: <string> }
+  //   hoursSince:   integer — hours elapsed since last hour with ≥ 0.1 in
+  //   lastAmountIn: the precipitation amount of that last rainy hour, rounded to 0.1 in
+  //   display:      human string, e.g. "14 HRS"  or  "2 DAYS 6 HRS"
+  rain: null,
+};
+
+// ─────────────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────────────
+function parseSunTime(timeStr, dateStr) {
+  const [time, ampm] = timeStr.trim().split(' ');
+  let [h, m] = time.split(':').map(Number);
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  return new Date(`${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);
+}
+
+function cosineInterp(h1, h2, t) {
+  const t2 = (1 - Math.cos(t * Math.PI)) / 2;
+  return h1 * (1 - t2) + h2 * t2;
+}
+
+function getHeightAt(ms, pts) {
+  // Find the two surrounding tide points and cosine-interpolate
+  for (let k = 0; k < pts.length - 1; k++) {
+    if (pts[k].ms <= ms && ms <= pts[k + 1].ms) {
+      const frac = (ms - pts[k].ms) / (pts[k + 1].ms - pts[k].ms);
+      return cosineInterp(pts[k].h, pts[k + 1].h, frac);
+    }
+  }
+  // Before first point (extrapolate from first segment)
+  if (ms < pts[0].ms) {
+    const frac = (ms - pts[0].ms) / (pts[1].ms - pts[0].ms);
+    return cosineInterp(pts[0].h, pts[1].h, Math.max(0, frac));
+  }
+  // After last point
+  const n = pts.length;
+  const frac = (ms - pts[n - 2].ms) / (pts[n - 1].ms - pts[n - 2].ms);
+  return cosineInterp(pts[n - 2].h, pts[n - 1].h, Math.min(1, frac));
+}
+
+function formatHeight(h) {
+  const neg = h < 0;
+  const abs = Math.abs(h);
+  let ft   = Math.floor(abs);
+  let inch = Math.round((abs - ft) * 12);
+  if (inch === 12) { ft += 1; inch = 0; }
+  return `${neg ? '-' : ''}${ft}'${inch}"`;
+}
+
+// ── formatHoursSinceRain ────────────────────────────────────────────
+// Returns a display string for the rain-since widget.
+// Always expressed in hours — never converted to days.
+//   1  → "1 HR"
+//   2+ → "N HRS"
+function formatHoursSinceRain(hours) {
+  return `${hours} HR${hours !== 1 ? 'S' : ''}`;
+}
+
+function formatTime12Short(date) {
+  // Returns "7:14" or "2:48" — no AM/PM, for use inside the graph
+  let h = date.getHours() % 12 || 12;
+  const m = date.getMinutes();
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+function formatTime12Full(date) {
+  // Returns "10:30 AM" — for the header clock
+  let h = date.getHours();
+  const m = date.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function formatHeaderDate(date) {
+  // Returns "MON APR 20 2026"
+  const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  return `${DAYS[date.getDay()]} ${MONTHS[date.getMonth()]} ${date.getDate()} ${date.getFullYear()}`;
+}
+
+// ─────────────────────────────────────────────────────
+//  NEXT TIDE PANEL  (3 states: High Tide / Low Tide / Low Tide Negative)
+// ─────────────────────────────────────────────────────
+function populateNextTide() {
+  let next;
+  if (DATA.tides.length === 0) {
+    // No-data state — show placeholder dashes
+    document.getElementById('panel-next-tide').innerHTML = `
+      <div class="next-height">
+        <div class="next-height-group">
+          <div class="next-height-ft"><span class="next-num">--</span><span class="next-unit">FT</span></div>
+          <div class="next-height-in"><span class="next-num">--</span><span class="next-unit">IN</span></div>
+        </div>
+      </div>
+      <div class="next-direction" style="top:calc(50% - 9px)">${SVG_HIGH_TIDE}</div>
+      <div class="next-time-display">--:-- --</div>
+      <div class="next-label">NEXT TIDE</div>
+    `;
+    return;
+  } else {
+    const now   = new Date();
+    const nowMs = now.getTime();
+    const withMs = DATA.tides.map(t => ({ ...t, ms: new Date(t.iso).getTime() }));
+    next = withMs.filter(t => t.ms > nowMs).sort((a, b) => a.ms - b.ms)[0];
+    if (!next) return;
+  }
+
+  const isHigh = next.type === 'H';
+  const isNeg  = next.height < 0;
+
+  // Absolute ft + in
+  const abs  = Math.abs(next.height);
+  let ft     = Math.floor(abs);
+  let inch   = Math.round((abs - ft) * 12);
+  if (inch === 12) { ft++; inch = 0; }
+
+  const timeStr  = formatTime12Full(new Date(next.iso));
+  const label    = isHigh ? 'HIGH TIDE' : 'LOW TIDE';
+
+  // Icon: High Tide → upward (SVG_HIGH_TIDE), Low Tide → downward (SVG_LOW_TIDE),
+  //       Low Tide Negative → upward (SVG_HIGH_TIDE) per Figma design
+  const iconSvg = (!isHigh && !isNeg) ? SVG_LOW_TIDE : SVG_HIGH_TIDE;
+  // Low Tide icon sits 6px higher than High/Negative
+  const iconTop = (!isHigh && !isNeg) ? 'calc(50% - 15px)' : 'calc(50% - 9px)';
+
+  // Height row: negative state prefixes a '-' element (4px gap from ft/in group)
+  const heightRow = isNeg
+    ? `<div class="next-height">
+         <span class="next-num">-</span>
+         <div class="next-height-group">
+           <div class="next-height-ft"><span class="next-num">${ft}</span><span class="next-unit">FT</span></div>
+           <div class="next-height-in"><span class="next-num">${inch}</span><span class="next-unit">IN</span></div>
+         </div>
+       </div>`
+    : `<div class="next-height">
+         <div class="next-height-group">
+           <div class="next-height-ft"><span class="next-num">${ft}</span><span class="next-unit">FT</span></div>
+           <div class="next-height-in"><span class="next-num">${inch}</span><span class="next-unit">IN</span></div>
+         </div>
+       </div>`;
+
+  document.getElementById('panel-next-tide').innerHTML = `
+    ${heightRow}
+    <div class="next-direction" style="top:${iconTop}">${iconSvg}</div>
+    <div class="next-time-display">${timeStr}</div>
+    <div class="next-label">${label}</div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────
+//  MOON PHASE PANEL
+// ─────────────────────────────────────────────────────
+function populateMoonPhase() {
+  if (!DATA.moonPhase) {
+    document.getElementById('panel-moon').innerHTML = `
+      <div class="moon-image">${SVG_MOON['NEW MOON']}</div>
+      <div class="moon-age">--</div>
+      <div class="moon-label">-- ----</div>
+    `;
+    return;
+  }
+  const phase = DATA.moonPhase;
+  const age   = DATA.moonAge.toFixed(1);
+  const svg   = SVG_MOON[phase] || SVG_MOON['NEW MOON'];
+
+  document.getElementById('panel-moon').innerHTML = `
+    <div class="moon-image">${svg}</div>
+    <div class="moon-age">${age}</div>
+    <div class="moon-label">${phase}</div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────
+//  SUNRISE / SUNSET PANEL
+// ─────────────────────────────────────────────────────
+function populateSunriseSunset() {
+  const srTime = DATA.sunrise || '--:-- --';
+  const ssTime = DATA.sunset  || '--:-- --';
+  document.getElementById('panel-sun').innerHTML = `
+    <div class="sun-content">
+      <div class="sun-row">
+        <div class="sun-row-top">
+          <div class="sun-icon">${SVG_SUNRISE}</div>
+          <div class="sun-time">${srTime}</div>
+        </div>
+        <div class="sun-label">SUNRISE</div>
+      </div>
+      <div class="sun-row">
+        <div class="sun-row-top">
+          <div class="sun-icon">${SVG_SUNSET}</div>
+          <div class="sun-time">${ssTime}</div>
+        </div>
+        <div class="sun-label">SUNSET</div>
+      </div>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────
+//  TIDE CYCLE PANEL
+// ─────────────────────────────────────────────────────
+function populateTideCycle() {
+  if (!DATA.tideCycle) {
+    document.getElementById('panel-tide-cycle').innerHTML = `
+      <div class="tide-cycle-curve">${SVG_HALF_TIDE_CURVE}</div>
+      <div class="tide-cycle-code">--</div>
+      <div class="tide-cycle-label">---- TIDE</div>
+    `;
+    return;
+  }
+  const state = DATA.tideCycle; // 'Spring Tide' | 'Half Tide' | 'Neap Tide'
+  let svgCurve, letter, label;
+
+  if (state === 'Spring Tide') {
+    svgCurve = SVG_SPRING_TIDE_CURVE;
+    letter   = 'L';
+    label    = 'SPRING TIDE';
+  } else if (state === 'Half Tide') {
+    svgCurve = SVG_HALF_TIDE_CURVE;
+    letter   = 'M';
+    label    = 'HALF TIDE';
+  } else {
+    // Neap Tide
+    svgCurve = SVG_NEAP_TIDE_CURVE;
+    letter   = 'S';
+    label    = 'NEAP TIDE';
+  }
+
+  document.getElementById('panel-tide-cycle').innerHTML = `
+    <div class="tide-cycle-curve">${svgCurve}</div>
+    <div class="tide-cycle-code">${letter}</div>
+    <div class="tide-cycle-label">${label}</div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────
+//  RAIN WIDGET  (UI to be merged from design — data layer only)
+// ─────────────────────────────────────────────────────
+//
+//  CONTRACT for the UI designer
+//  ─────────────────────────────
+//  After fetchRainData() resolves, DATA.rain is either:
+//
+//    null
+//      → Hide the widget entirely.  No rain within the past 120 hours,
+//        or the fetch failed.
+//
+//    { hoursSince, lastAmountIn, display }
+//      hoursSince   — integer, hours elapsed since last qualifying rain
+//      lastAmountIn — float, precipitation amount of that hour (1 decimal, e.g. 0.3)
+//      display      — pre-formatted string for the primary readout, e.g.:
+//                       "6 HRS"         (< 24 hours)
+//                       "2 DAYS 6 HRS"  (≥ 24 hours, with leftover hours)
+//                       "3 DAYS"        (≥ 24 hours, exact multiple)
+//
+//  Example usage inside a UI populate function:
+//    if (!DATA.rain) { hideRainWidget(); return; }
+//    showRainWidget();
+//    rainDisplayEl.textContent  = DATA.rain.display;      // "2 DAYS 6 HRS"
+//    rainAmountEl.textContent   = `${DATA.rain.lastAmountIn}"`;  // "0.3""
+//
+function populateRain() {
+  const stat = document.getElementById('rain-stat');
+  const text = document.getElementById('header-rain');
+  if (!stat || !text) return;
+
+  if (DATA.rain) {
+    text.textContent = DATA.rain.display;           // e.g. "56 HRS" or "2 DAYS 6 HRS"
+    stat.style.visibility = 'visible';
+    console.info(`✓ Rain widget: "${DATA.rain.display}" (last rain: ${DATA.rain.lastAmountIn}in)`);
+  } else {
+    stat.style.visibility = 'hidden';
+    console.info('✓ Rain widget: hidden (no qualifying rain in past 120h)');
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  HEADER CLOCK (updates every second)
+// ─────────────────────────────────────────────────────
+function updateHeader() {
+  const now = new Date();
+  document.getElementById('header-time').textContent = formatTime12Full(now);
+  document.getElementById('header-date').textContent = formatHeaderDate(now);
+
+  // Wind — show '--' when not yet loaded
+  const wind = (DATA.windDir != null && DATA.windMph != null)
+    ? `${DATA.windDir} ${DATA.windMph}MPH`
+    : '--';
+  document.getElementById('header-wind').textContent = wind;
+
+  // Water temp — show '--' when not yet loaded
+  const temp = DATA.waterTempF != null ? `${DATA.waterTempF}°F` : '--';
+  document.getElementById('header-temp').textContent = temp;
+}
+
+// ─────────────────────────────────────────────────────
+//  TIDE GRAPH
+// ─────────────────────────────────────────────────────
+function drawTideGraph() {
+  const canvas = document.getElementById('tide-canvas');
+  const ctx    = canvas.getContext('2d');
+  const W = 1216, H = 334;
+
+  // ── HiDPI / Retina fix: scale canvas pixel buffer by devicePixelRatio
+  //    Setting canvas.width resets the context (clears transforms + pixels),
+  //    so we do this before any drawing. CSS size stays locked at W×H.
+  const dpr = 3;
+  canvas.width        = W * dpr;
+  canvas.height       = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+
+  // ── Layout constants (matched to Figma measurements — 1280×720)
+  const CURVE_TOP    = 56;   // top of usable curve area (clears title label)
+  const CURVE_BOTTOM = 248;  // bottom of usable curve area (clears hour labels)
+  const TITLE_Y      = 23;   // vertical center of "SUNRISE TO SUNSET TIDE GRAPH"
+  const HOUR_Y       = 280;  // vertical center of hour labels (Figma top: 273 + ~7px)
+
+  // Guard: need both tides AND sunrise/sunset before drawing the full graph.
+  // parseSunTime(null) would throw — this must come before those calls.
+  if (DATA.tides.length === 0 || !DATA.sunrise || !DATA.sunset) {
+    ctx.save();
+    ctx.fillStyle     = 'rgba(255,255,255,0.5)';
+    ctx.font          = '600 14px Inter, sans-serif';
+    ctx.letterSpacing = '5.6px';
+    ctx.textAlign     = 'center';
+    ctx.textBaseline  = 'middle';
+    ctx.fillText('SUNRISE TO SUNSET TIDE GRAPH', W / 2, TITLE_Y);
+    ctx.restore();
+    return;
+  }
+
+  // ── Time window  (safe to call parseSunTime — both values confirmed non-null above)
+  const sunriseDate = parseSunTime(DATA.sunrise, DATA.graphDate);
+  const sunsetDate  = parseSunTime(DATA.sunset,  DATA.graphDate);
+  const tStart = sunriseDate.getTime();
+  const tEnd   = sunsetDate.getTime();
+
+  // ── Coordinate transforms
+  function toX(ms) {
+    return ((ms - tStart) / (tEnd - tStart)) * W;
+  }
+
+  const allHeights = DATA.tides.map(t => t.height);
+  const minH = Math.min(...allHeights) - 0.5;
+  const maxH = Math.max(...allHeights) + 0.5;
+  function toY(h) {
+    const norm = (h - minH) / (maxH - minH);
+    return CURVE_TOP + (CURVE_BOTTOM - CURVE_TOP) * (1 - norm);
+  }
+
+  // ── Tide points as ms timestamps
+  const pts = DATA.tides.map(t => ({ ms: new Date(t.iso).getTime(), h: t.height }));
+
+  // canvas.width reset (above) already cleared the canvas — no explicit clearRect needed
+
+  // ─────────────────────────────────────────────────────
+  //  1. TITLE LABEL
+  // ─────────────────────────────────────────────────────
+  ctx.save();
+  ctx.fillStyle    = 'rgba(255,255,255,0.5)';
+  ctx.font         = '600 14px Inter, sans-serif';
+  ctx.letterSpacing = '5.6px';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SUNRISE TO SUNSET TIDE GRAPH', W / 2, TITLE_Y);
+  ctx.restore();
+
+  // ─────────────────────────────────────────────────────
+  //  2. TIDE CURVE
+  // ─────────────────────────────────────────────────────
+  ctx.save();
+  ctx.beginPath();
+  const SAMPLES = 900;
+  let first = true;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const ms = tStart + (i / SAMPLES) * (tEnd - tStart);
+    const x  = toX(ms);
+    const y  = toY(getHeightAt(ms, pts));
+    first ? (ctx.moveTo(x, y), first = false) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth   = 4;
+  ctx.lineJoin    = 'round';
+  ctx.lineCap     = 'round';
+  ctx.stroke();
+  ctx.restore();
+
+  // ─────────────────────────────────────────────────────
+  //  3. HOUR LABELS
+  // ─────────────────────────────────────────────────────
+  ctx.save();
+  ctx.fillStyle     = 'rgba(255,255,255,0.5)';
+  ctx.font          = '600 14px Inter, sans-serif';
+  ctx.letterSpacing = '5.6px';
+  ctx.textAlign     = 'center';
+  ctx.textBaseline  = 'middle';
+
+  // Every 2 hours within the window, starting from the first odd hour after sunrise
+  const srHour = sunriseDate.getHours() + sunriseDate.getMinutes() / 60;
+  const ssHour = sunsetDate.getHours()  + sunsetDate.getMinutes()  / 60;
+  let hourCursor = Math.ceil(srHour);
+  if (hourCursor % 2 === 0) hourCursor += 1; // snap to odd hour
+
+  for (let h = hourCursor; h < ssHour; h += 2) {
+    const d = new Date(sunriseDate);
+    d.setHours(h, 0, 0, 0);
+    const x = toX(d.getTime());
+    const label = h < 12 ? `${h}A` : (h === 12 ? '12P' : `${h - 12}P`);
+    ctx.fillText(label, x, HOUR_Y);
+  }
+  ctx.restore();
+
+  // ─────────────────────────────────────────────────────
+  //  4. ORANGE CURRENT-TIME BAR
+  //     Drawn before dots so dots render on top
+  // ─────────────────────────────────────────────────────
+  const now = new Date();
+  const nowMs = now.getTime();
+  if (nowMs >= tStart && nowMs <= tEnd) {
+    ctx.save();
+    ctx.fillStyle = '#ff912d';
+    ctx.fillRect(toX(nowMs) - 2, 0, 4, 303); // matches shaded background height
+    ctx.restore();
+  }
+
+  // ─────────────────────────────────────────────────────
+  //  5. PEAK DOTS + LABELS (only for tides within window)
+  // ─────────────────────────────────────────────────────
+  const peaksInWindow = DATA.tides.filter(t => {
+    const ms = new Date(t.iso).getTime();
+    return ms > tStart && ms < tEnd;
+  });
+
+  peaksInWindow.forEach(tide => {
+    const ms  = new Date(tide.iso).getTime();
+    const x   = toX(ms);
+    const y   = toY(tide.height);
+    const LH  = 14; // line height between label rows
+
+    // White dot (8px radius, per Figma 16px diameter)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.restore();
+
+    // Labels stacked above the dot, left-aligned from dot center
+    // Row order top→bottom: type | height | time | •dot
+    // Figma spacing: each row center is 14px apart, bottom row 22px above dot center
+    ctx.save();
+    ctx.fillStyle     = '#fff';
+    ctx.font          = '600 12px Inter, sans-serif';
+    ctx.letterSpacing = '4.8px';
+    ctx.textAlign     = 'left';
+    ctx.textBaseline  = 'middle';
+
+    // Left edge of labels aligns with dot center x.
+    // Bottom of label stack sits 8px above top of dot (dot radius = 8px),
+    // so bottom of bottom label = y - 16. With textBaseline 'middle' and
+    // 12px font (half-height ≈ 6px): centers at y-22, y-36, y-50.
+    const lx = x; // left edge at dot center
+    ctx.fillText(tide.type,                            lx, y - 50);
+    ctx.fillText(formatHeight(tide.height),             lx, y - 36);
+    ctx.fillText(formatTime12Short(new Date(tide.iso)), lx, y - 22);
+    ctx.restore();
+  });
+}
+
+// ─────────────────────────────────────────────────────
+//  NOAA CO-OPS — TIDE PREDICTIONS
+//  Station 9413745 (Santa Cruz, CA)
+//  Fetches yesterday + today + tomorrow to ensure bracketing tides
+//  on both sides of the sunrise-to-sunset window.
+// ─────────────────────────────────────────────────────
+async function fetchTidePredictions() {
+  const STATION = '9413745';
+
+  const fmtDate = d =>
+    `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+
+  const today     = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const tomorrow  = new Date(today); tomorrow.setDate(today.getDate() + 1);
+
+  const url = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter'
+    + `?begin_date=${fmtDate(yesterday)}&end_date=${fmtDate(tomorrow)}`
+    + `&station=${STATION}&product=predictions&datum=MLLW`
+    + `&time_zone=lst_ldt&interval=hilo&units=english&format=json`;
+
+  try {
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (!json.predictions) throw new Error(json.error?.message || 'No predictions in response');
+
+    DATA.tides = json.predictions.map(p => ({
+      iso:    p.t.replace(' ', 'T'),   // "2026-04-19 05:55" → "2026-04-19T05:55"
+      height: parseFloat(p.v),
+      type:   p.type,                  // "H" or "L"
+    }));
+
+    // Update graphDate to today so x-axis aligns with live tide timestamps
+    DATA.graphDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+    console.info(`✓ Tide predictions loaded: ${DATA.tides.length} points for ${DATA.graphDate}`);
+  } catch (err) {
+    console.warn('Tide fetch failed — tides unavailable.', err.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  WEATHER — Open-Meteo (free, no key, CORS-safe)
+//  Wind:       Open-Meteo forecast API  → mph + bearing → cardinal
+//  Water temp: Open-Meteo Marine API    → °C → °F
+// ─────────────────────────────────────────────────────
+function degreesToCardinal(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+async function fetchWeather() {
+  const LAT = 36.9741, LNG = -122.0308;
+  try {
+    const [windRes, tempRes] = await Promise.all([
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LNG}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph`),
+      fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LNG}&current=sea_surface_temperature`),
+    ]);
+    const [windJson, tempJson] = await Promise.all([windRes.json(), tempRes.json()]);
+
+    if (windJson.current) {
+      DATA.windMph = Math.round(windJson.current.wind_speed_10m);
+      DATA.windDir = degreesToCardinal(windJson.current.wind_direction_10m);
+    }
+    if (tempJson.current) {
+      // Marine API returns °C — convert to °F, keep one decimal place
+      DATA.waterTempF = parseFloat((tempJson.current.sea_surface_temperature * 9 / 5 + 32).toFixed(1));
+    }
+
+    console.info(`✓ Weather loaded: ${DATA.windDir} ${DATA.windMph}mph, water ${DATA.waterTempF}°F`);
+  } catch (err) {
+    console.warn('Weather fetch failed — header stats unavailable.', err.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  RAIN DATA  — Open-Meteo forecast API (free, no key, CORS-safe)
+//  Fetches hourly precipitation for the past 5 days (120 h) in
+//  America/Los_Angeles time.  Walks backwards from the current hour
+//  to find the most recent hour with ≥ 0.1 in of precipitation.
+//  Populates DATA.rain or sets it to null if no qualifying rain is
+//  found within 120 hours.
+//
+//  Location: zip 95060 — Santa Cruz, CA
+//            36.9741° N, 122.0308° W
+// ─────────────────────────────────────────────────────
+async function fetchRainData() {
+  const LAT = 36.9741, LNG = -122.0308;
+  const THRESHOLD_IN = 0.1;   // minimum inches to count as "rained"
+  const MAX_HOURS    = 120;   // hide the widget beyond this
+
+  const url = `https://api.open-meteo.com/v1/forecast`
+    + `?latitude=${LAT}&longitude=${LNG}`
+    + `&hourly=precipitation`
+    + `&past_days=5`
+    + `&timezone=America%2FLos_Angeles`
+    + `&precipitation_unit=inch`;
+
+  try {
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (!json.hourly?.time || !json.hourly?.precipitation) {
+      throw new Error('Unexpected response shape from Open-Meteo rain endpoint');
+    }
+
+    const times  = json.hourly.time;          // ["2026-04-20T00:00", ...]  local TZ
+    const precip = json.hourly.precipitation; // [0.0, 0.12, ...]  inches
+
+    // ── Build a string matching the API's time format for the current local hour
+    //    sv-SE locale → "YYYY-MM-DD HH:MM:SS"  (ISO-like, no T separator)
+    const localStr      = new Date().toLocaleString('sv-SE', { timeZone: 'America/Los_Angeles' });
+    const currentHourStr = localStr.slice(0, 13).replace(' ', 'T') + ':00';
+    //    e.g. "2026-04-25T14:00"
+
+    // ── Find the index of the current hour in the response array
+    let currentIdx = times.indexOf(currentHourStr);
+    if (currentIdx === -1) {
+      // Fallback: binary-search for the closest past hour
+      currentIdx = 0;
+      for (let i = times.length - 1; i >= 0; i--) {
+        if (times[i] <= currentHourStr) { currentIdx = i; break; }
+      }
+    }
+
+    // ── Walk backwards to find the last hour with ≥ THRESHOLD_IN precipitation
+    let lastRainIdx = -1;
+    for (let i = currentIdx; i >= 0; i--) {
+      if (precip[i] != null && precip[i] >= THRESHOLD_IN) {
+        lastRainIdx = i;
+        break;
+      }
+    }
+
+    if (lastRainIdx === -1) {
+      DATA.rain = null;
+      console.info('✓ Rain data: no qualifying rain found in past 5 days — widget hidden');
+      return;
+    }
+
+    const hoursSince = currentIdx - lastRainIdx;
+
+    if (hoursSince > MAX_HOURS) {
+      DATA.rain = null;
+      console.info(`✓ Rain data: last rain was ${hoursSince}h ago (>${MAX_HOURS}h) — widget hidden`);
+      return;
+    }
+
+    const lastAmountIn = Math.round(precip[lastRainIdx] * 10) / 10; // 1 decimal place
+
+    DATA.rain = {
+      hoursSince,
+      lastAmountIn,
+      display: formatHoursSinceRain(hoursSince),
+    };
+
+    console.info(
+      `✓ Rain data: last rain ${hoursSince}h ago (${lastAmountIn}in) — display: "${DATA.rain.display}"`
+    );
+  } catch (err) {
+    console.warn('Rain data fetch failed — widget will be hidden.', err.message);
+    DATA.rain = null;
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  SUNRISE / SUNSET  — sunrise-sunset.org API (no key required)
+//  Santa Cruz, CA: 36.9741° N, -122.0308° W
+//  formatted=0 returns ISO 8601 UTC; JS Date converts to system local time.
+// ─────────────────────────────────────────────────────
+async function fetchSunriseSunset() {
+  const LAT = 36.9741, LNG = -122.0308;
+  const url = `https://api.sunrise-sunset.org/json?lat=${LAT}&lng=${LNG}&formatted=0`;
+
+  try {
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (json.status !== 'OK') throw new Error(json.status);
+
+    // Convert UTC ISO → local h:mm AM/PM  (uses system timezone — correct on Pi)
+    const toLocalTime = isoStr => {
+      const d = new Date(isoStr);
+      let h = d.getHours();
+      const m = d.getMinutes();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
+    };
+
+    DATA.sunrise = toLocalTime(json.results.sunrise);
+    DATA.sunset  = toLocalTime(json.results.sunset);
+
+    console.info(`✓ Sunrise/Sunset loaded: ${DATA.sunrise} / ${DATA.sunset}`);
+  } catch (err) {
+    console.warn('Sunrise/Sunset fetch failed — keeping dummy data.', err.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  PANEL ANIMATION  — fade out → swap content → fade in
+// ─────────────────────────────────────────────────────
+function animatePanel(id, updateFn, duration = 300) {
+  const panel = document.getElementById(id);
+
+  // Fade out only the children — the panel border is on the parent and stays visible
+  Array.from(panel.children).forEach(el => {
+    el.style.transition = `opacity ${duration}ms ease`;
+    el.style.opacity = '0';
+  });
+
+  setTimeout(() => {
+    updateFn(); // replaces innerHTML with new content
+    // Start new children invisible, then fade in after two frames
+    // (double rAF ensures the browser registers opacity:0 before transitioning)
+    Array.from(panel.children).forEach(el => { el.style.opacity = '0'; });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      Array.from(panel.children).forEach(el => {
+        el.style.transition = `opacity ${duration}ms ease`;
+        el.style.opacity = '1';
+      });
+    }));
+  }, duration);
+}
+
+
+// ─────────────────────────────────────────────────────
+//  MOON PHASE + AGE  (pure calculation — no API needed)
+// ─────────────────────────────────────────────────────
+function computeMoonData(date) {
+  const LUNAR_CYCLE = 29.53058867;
+  // Reference new moon: Jan 6, 2000 06:44 UTC (calibrated to match observed quarter-moon timestamps)
+  const REF_MS = Date.UTC(2000, 0, 6, 6, 44, 0);
+  const daysSince = (date.getTime() - REF_MS) / 86400000;
+  const age = ((daysSince % LUNAR_CYCLE) + LUNAR_CYCLE) % LUNAR_CYCLE;
+
+  let phase;
+  if      (age <  1.85) phase = 'NEW MOON';
+  else if (age <  7.38) phase = 'WAXING CRESCENT';
+  else if (age <  9.22) phase = 'FIRST QUARTER';
+  else if (age < 14.77) phase = 'WAXING GIBBOUS';
+  else if (age < 16.61) phase = 'FULL MOON';
+  else if (age < 22.15) phase = 'WANING GIBBOUS';
+  else if (age < 23.99) phase = 'LAST QUARTER';
+  else                   phase = 'WANING CRESCENT';
+
+  return { age: parseFloat(age.toFixed(1)), phase };
+}
+
+// ─────────────────────────────────────────────────────
+//  TIDE CYCLE  (derived from moon age — no API needed)
+// ─────────────────────────────────────────────────────
+function computeTideCycle(moonAge) {
+  // Spring-neap cycle repeats every ~14.77 days (half a lunar cycle).
+  // Spring tides peak near new/full moon; neap tides peak near quarter moons.
+  const pos = moonAge % 14.765;
+  if (pos < 4.5)  return 'Spring Tide';  // within ~4.5 days of new/full moon
+  if (pos < 6.5)  return 'Half Tide';    // transitioning toward neap
+  if (pos < 10.5) return 'Neap Tide';    // near quarter moon
+  if (pos < 12.5) return 'Half Tide';    // transitioning back to spring
+  return 'Spring Tide';
+}
+
+// ─────────────────────────────────────────────────────
+//  ELEMENT ANIMATION  — for non-panel elements (header spans, canvas)
+// ─────────────────────────────────────────────────────
+function animateElement(id, updateFn, duration = 300) {
+  const el = document.getElementById(id);
+  el.style.transition = `opacity ${duration}ms ease`;
+  el.style.opacity    = '0';
+  setTimeout(() => {
+    updateFn();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.style.transition = `opacity ${duration}ms ease`;
+      el.style.opacity    = '1';
+    }));
+  }, duration);
+}
+
+function animateTideGraph(duration = 300) {
+  animateElement('tide-canvas', drawTideGraph, duration);
+}
+
+// ─────────────────────────────────────────────────────
+//  NEXT TIDE CHANGE DETECTION
+//  Returns the ISO string of the upcoming next tide, or null if no data.
+// ─────────────────────────────────────────────────────
+let _currentNextTideIso = null;
+
+function _peekNextTideIso() {
+  if (!DATA.tides.length) return null;
+  const nowMs  = Date.now();
+  const sorted = DATA.tides
+    .map(t => ({ iso: t.iso, ms: new Date(t.iso).getTime() }))
+    .filter(t => t.ms > nowMs)
+    .sort((a, b) => a.ms - b.ms);
+  return sorted[0] ? sorted[0].iso : null;
+}
+
+// ─────────────────────────────────────────────────────
+//  HOURLY WEATHER REFRESH  — top of each hour
+// ─────────────────────────────────────────────────────
+async function _runHourlyWeather() {
+  await Promise.allSettled([fetchWeather(), fetchRainData()]);
+  animateElement('header-wind', () => {
+    document.getElementById('header-wind').textContent =
+      (DATA.windDir != null && DATA.windMph != null) ? `${DATA.windDir} ${DATA.windMph}MPH` : '--';
+  });
+  animateElement('header-temp', () => {
+    document.getElementById('header-temp').textContent =
+      DATA.waterTempF != null ? `${DATA.waterTempF}°F` : '--';
+  });
+  populateRain();
+  // Schedule the next run at the top of the following hour
+  const now          = new Date();
+  const msToNextHour = (60 - now.getMinutes()) * 60000
+                     - now.getSeconds()         * 1000
+                     - now.getMilliseconds();
+  setTimeout(_runHourlyWeather, msToNextHour);
+}
+
+function scheduleHourlyWeather() {
+  const now          = new Date();
+  const msToNextHour = (60 - now.getMinutes()) * 60000
+                     - now.getSeconds()         * 1000
+                     - now.getMilliseconds();
+  setTimeout(_runHourlyWeather, msToNextHour);
+}
+
+// ─────────────────────────────────────────────────────
+//  DAILY REFRESH  — 12:01 AM
+//  Re-fetches tides + sunrise/sunset; recomputes moon/tide cycle;
+//  animates every panel and the tide graph.
+// ─────────────────────────────────────────────────────
+async function dailyRefresh() {
+  DATA.tides    = [];
+  DATA.sunrise  = null;
+  DATA.sunset   = null;
+  _currentNextTideIso = null; // reset so setInterval re-seeds after fetch
+
+  await Promise.allSettled([fetchTidePredictions(), fetchSunriseSunset(), fetchRainData()]);
+
+  const now      = new Date();
+  const moonData = computeMoonData(now);
+  DATA.moonPhase = moonData.phase;
+  DATA.moonAge   = moonData.age;
+  DATA.tideCycle = computeTideCycle(moonData.age);
+
+  animatePanel('panel-next-tide',  populateNextTide);
+  animatePanel('panel-tide-cycle', populateTideCycle);
+  animatePanel('panel-sun',        populateSunriseSunset);
+  animatePanel('panel-moon',       populateMoonPhase);
+  animateTideGraph();
+  populateRain();
+
+  console.info('✓ Daily refresh complete');
+}
+
+function scheduleDailyRefresh() {
+  const now  = new Date();
+  const next = new Date(now);
+  next.setHours(0, 1, 0, 0);                          // 12:01 AM
+  if (next <= now) next.setDate(next.getDate() + 1);  // already past → tomorrow
+  const delay = next - now;
+  setTimeout(async () => {
+    await dailyRefresh();
+    setInterval(dailyRefresh, 24 * 60 * 60 * 1000);  // every 24 h thereafter
+  }, delay);
+}
+
+// ─────────────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────────────
+(function init() {
+  // Render no-data placeholder state immediately (clock starts dimmed at 20%)
+  updateHeader();
+  populateNextTide();
+  populateTideCycle();
+  populateSunriseSunset();
+  populateMoonPhase();
+  drawTideGraph();
+  setInterval(() => {
+    updateHeader();
+    drawTideGraph();
+
+    // Detect when the next tide changes (i.e. current tide just passed)
+    // and animate the Next Tide panel to show the new upcoming tide.
+    const freshIso = _peekNextTideIso();
+    if (freshIso !== _currentNextTideIso) {
+      if (_currentNextTideIso !== null) {
+        // A real change — animate the panel
+        animatePanel('panel-next-tide', populateNextTide);
+      }
+      _currentNextTideIso = freshIso;
+    }
+  }, 1000);
+
+  // Fetch all live sources in parallel.
+  // allSettled means we reveal even if one source fails.
+  Promise.allSettled([fetchTidePredictions(), fetchSunriseSunset(), fetchWeather(), fetchRainData()])
+    .then(() => {
+      try {
+        // Moon + tide cycle are always computed (no API) — derive now from live date
+        const now      = new Date();
+        const moonData = computeMoonData(now);
+        DATA.moonPhase = moonData.phase;
+        DATA.moonAge   = moonData.age;
+        DATA.tideCycle = computeTideCycle(moonData.age);
+
+        // Populate all panels at once
+        updateHeader();
+        populateNextTide();
+        populateTideCycle();
+        populateSunriseSunset();
+        populateMoonPhase();
+        drawTideGraph();
+        populateRain();
+
+        // Seed the next-tide tracker so the first interval tick
+        // doesn't misfire an animation
+        _currentNextTideIso = _peekNextTideIso();
+
+      } catch (err) {
+        console.error('Error populating panels after fetch:', err);
+      } finally {
+        // Always fade in — even partial data is better than staying dimmed
+        document.getElementById('clock').classList.remove('no-data');
+      }
+    });
+
+  // Start scheduled refreshes
+  scheduleHourlyWeather();
+  scheduleDailyRefresh();
+})();
+
+</script>
+</body>
+</html>

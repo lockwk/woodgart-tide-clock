@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Santa Cruz Tide Clock</title>
+  <!-- DSEG7: authentic 7-segment LCD font for numbers -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dseg@0.46.0/css/dseg.min.css">
+  <!-- Share Tech Mono: clean monospace for labels -->
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ── Fixed 1280×800 canvas ─────────────────────────────────────── */
+    html, body {
+      width: 1280px;
+      height: 800px;
+      overflow: hidden;
+      background: #111;
+    }
+
+    body {
+      font-family: 'Share Tech Mono', monospace;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      background: #1b1b1b;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────────────────── */
+    #header {
+      height: 50px;
+      background: #232323;
+      border-bottom: 2px solid #3a3a3a;
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .bt-icon {
+      font-size: 16px;
+      color: #7ab;
+    }
+
+    .batt {
+      font-size: 11px;
+      color: #aaa;
+      border: 1.5px solid #555;
+      padding: 1px 5px 1px 4px;
+      border-radius: 2px;
+      position: relative;
+    }
+
+    #port-name {
+      flex: 1;
+      text-align: center;
+      font-size: 20px;
+      letter-spacing: 4px;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    #header-date {
+      font-size: 14px;
+      color: #999;
+      letter-spacing: 2px;
+    }
+
+    /* ── INFO ROW ────────────────────────────────────────────────────── */
+    #info-row {
+      height: 370px;
+      display: flex;
+      flex-shrink: 0;
+      border-bottom: 2px solid #3a3a3a;
+    }
+
+    /* ── LEFT COL: Sun + Moon ───────────────────────────────────────── */
+    #left-col {
+      width: 210px;
+      flex-shrink: 0;
+      border-right: 2px solid #3a3a3a;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #sun-panel {
+      height: 170px;
+      border-bottom: 2px solid #3a3a3a;
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .sun-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sun-icon {
+      font-size: 26px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .sun-info { display: flex; flex-direction: column; gap: 2px; }
+
+    .sun-label {
+      font-size: 10px;
+      color: #666;
+      letter-spacing: 2px;
+    }
+
+    .sun-time {
+      font-size: 22px;
+      letter-spacing: 2px;
+      color: #ddd;
+    }
+
+    #moon-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px;
+    }
+
+    #moon-canvas {
+      display: block;
+    }
+
+    #moon-age-display {
+      font-family: 'DSEG7 Classic', 'Share Tech Mono', monospace;
+      font-size: 28px;
+      color: #fff;
+      letter-spacing: 2px;
+    }
+
+    #moon-phase-label {
+      font-size: 10px;
+      color: #666;
+      letter-spacing: 2px;
+      text-align: center;
+    }
+
+    /* ── CENTER COL: Tide Graph ─────────────────────────────────────── */
+    #center-col {
+      flex: 1;
+      border-right: 2px solid #3a3a3a;
+      display: flex;
+      flex-direction: column;
+      padding: 14px 16px 8px 16px;
+    }
+
+    #graph-label {
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 3px;
+      margin-bottom: 6px;
+    }
+
+    #tide-canvas {
+      flex: 1;
+      display: block;
+    }
+
+    /* ── RIGHT COL: Next Tide + Cycle ──────────────────────────────── */
+    #right-col {
+      width: 290px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #next-tide-panel {
+      flex: 1;
+      border-bottom: 2px solid #3a3a3a;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    #next-tide-label {
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 3px;
+    }
+
+    #tide-chevrons {
+      font-size: 32px;
+      color: #fff;
+      line-height: 1;
+    }
+
+    #next-tide-time {
+      font-family: 'DSEG7 Classic', 'Share Tech Mono', monospace;
+      font-size: 48px;
+      color: #fff;
+      letter-spacing: 2px;
+      line-height: 1;
+    }
+
+    #next-tide-height {
+      font-size: 26px;
+      color: #bbb;
+      letter-spacing: 2px;
+    }
+
+    #tide-cycle-panel {
+      height: 150px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+    }
+
+    .cycle-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #cycle-label {
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 3px;
+    }
+
+    #cycle-value {
+      font-size: 64px;
+      color: #fff;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    #cycle-name {
+      font-size: 11px;
+      color: #888;
+      letter-spacing: 2px;
+    }
+
+    #cycle-canvas {
+      display: block;
+    }
+
+    /* ── BOTTOM: Time / Date / Temp ─────────────────────────────────── */
+    #time-row {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      padding: 0 36px;
+      gap: 0;
+      background: #181818;
+    }
+
+    #home-label {
+      width: 160px;
+      font-size: 14px;
+      color: #666;
+      letter-spacing: 4px;
+      flex-shrink: 0;
+    }
+
+    #main-time {
+      flex: 1;
+      text-align: center;
+      font-family: 'DSEG7 Classic', 'Share Tech Mono', monospace;
+      font-size: 136px;
+      color: #ffffff;
+      letter-spacing: 6px;
+      line-height: 1;
+    }
+
+    #right-meta {
+      width: 260px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    #day-date-display {
+      font-size: 22px;
+      letter-spacing: 3px;
+      color: #ccc;
+    }
+
+    #water-temp-display {
+      font-family: 'DSEG7 Classic', 'Share Tech Mono', monospace;
+      font-size: 38px;
+      color: #fff;
+      letter-spacing: 2px;
+    }
+
+    #water-temp-label {
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 3px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<div id="header">
+  <span class="bt-icon">&#x2731;</span>
+  <span class="batt">10</span>
+  <div id="port-name">SANTA CRUZ  MONTEREY BAY</div>
+  <div id="header-date"></div>
+</div>
+
+<!-- ═══════════════════ INFO ROW ═══════════════════ -->
+<div id="info-row">
+
+  <!-- LEFT: Sunrise / Sunset / Moon -->
+  <div id="left-col">
+    <div id="sun-panel">
+      <div class="sun-row">
+        <span class="sun-icon">&#9728;</span>
+        <div class="sun-info">
+          <span class="sun-label">SUNRISE</span>
+          <span class="sun-time">6:22 AM</span>
+        </div>
+      </div>
+      <div class="sun-row">
+        <span class="sun-icon" style="opacity:0.35">&#9728;</span>
+        <div class="sun-info">
+          <span class="sun-label">SUNSET</span>
+          <span class="sun-time">7:33 PM</span>
+        </div>
+      </div>
+    </div>
+    <div id="moon-panel">
+      <canvas id="moon-canvas" width="110" height="110"></canvas>
+      <div id="moon-age-display">17.0</div>
+      <div id="moon-phase-label">WANING GIBBOUS</div>
+    </div>
+  </div>
+
+  <!-- CENTER: Tide Graph -->
+  <div id="center-col">
+    <div id="graph-label">12-HOUR TIDE GRAPH</div>
+    <canvas id="tide-canvas"></canvas>
+  </div>
+
+  <!-- RIGHT: Next Tide + Cycle -->
+  <div id="right-col">
+    <div id="next-tide-panel">
+      <div id="next-tide-label">NEXT TIDE</div>
+      <div id="tide-chevrons">&#9650;&#9650;</div>
+      <div id="next-tide-time">--:--</div>
+      <div id="next-tide-height">-' -"</div>
+    </div>
+    <div id="tide-cycle-panel">
+      <div class="cycle-left">
+        <div id="cycle-label">TIDE CYCLE</div>
+        <div id="cycle-value">L</div>
+        <div id="cycle-name">SPRING TIDE</div>
+      </div>
+      <canvas id="cycle-canvas" width="110" height="80"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════ TIME ROW ═══════════════════ -->
+<div id="time-row">
+  <div id="home-label">HOME</div>
+  <div id="main-time">--:--</div>
+  <div id="right-meta">
+    <div id="day-date-display">--- --- --</div>
+    <div id="water-temp-display">55&deg;F</div>
+    <div id="water-temp-label">WATER TEMP</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ SCRIPTS ═══════════════════ -->
+<script>
+
+// ─────────────────────────────────────────────────────────────────
+// DATA — replace with live JSON from Python backend when on the Pi
+// ─────────────────────────────────────────────────────────────────
+const DATA = {
+  port:       'SANTA CRUZ  MONTEREY BAY',
+  sunrise:    '6:22 AM',
+  sunset:     '7:33 PM',
+  moonAge:    17.0,
+  moonPhase:  'WANING GIBBOUS',
+  waterTempF: 55,
+  tideCycle:  { code: 'L', name: 'SPRING TIDE' },
+  tides: [
+    // Include one tide before window start for graph interpolation
+    { iso: '2026-04-03T20:00:00', height: 3.80, type: 'H' },
+    { iso: '2026-04-04T06:47:00', height: -0.045, type: 'L' },
+    { iso: '2026-04-04T13:17:00', height:  3.399, type: 'H' },
+    { iso: '2026-04-04T18:00:00', height:  2.085, type: 'L' },
+    // Estimated next tide for graph continuity
+    { iso: '2026-04-05T01:30:00', height:  3.60,  type: 'H' },
+  ]
+};
+
+// ─────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────
+const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+function fmt12(date) {
+  const h = date.getHours(), m = String(date.getMinutes()).padStart(2,'0');
+  return `${h % 12 || 12}:${m}`;
+}
+
+function feetAndInches(decFeet) {
+  const neg  = decFeet < 0;
+  const abs  = Math.abs(decFeet);
+  const ft   = Math.floor(abs);
+  const inch = Math.round((abs - ft) * 12);
+  return `${neg ? '-' : ''}${ft}' ${inch}"`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CLOCK + DATE
+// ─────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('main-time').textContent = fmt12(now);
+  document.getElementById('day-date-display').textContent =
+    `${DAYS[now.getDay()]}  ${MONTHS[now.getMonth()]}  ${now.getDate()}`;
+  document.getElementById('header-date').textContent =
+    `${DAYS[now.getDay()]}  ${MONTHS[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}`;
+  updateNextTide(now);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// NEXT TIDE
+// ─────────────────────────────────────────────────────────────────
+function updateNextTide(now) {
+  const upcoming = DATA.tides
+    .map(t => ({ ...t, date: new Date(t.iso) }))
+    .filter(t => t.date > now)
+    .sort((a, b) => a.date - b.date);
+
+  if (!upcoming.length) return;
+  const next = upcoming[0];
+
+  document.getElementById('tide-chevrons').textContent =
+    next.type === 'H' ? '▲▲' : '▼▼';
+  document.getElementById('next-tide-time').textContent = fmt12(next.date);
+  document.getElementById('next-tide-height').textContent = feetAndInches(next.height);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MOON PHASE
+// ─────────────────────────────────────────────────────────────────
+function drawMoon() {
+  const canvas = document.getElementById('moon-canvas');
+  const ctx = canvas.getContext('2d');
+  const cx = 55, cy = 55, r = 48;
+  ctx.clearRect(0, 0, 110, 110);
+
+  // Base dark disc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#111';
+  ctx.fill();
+
+  // Illuminated portion via clipping
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  const age = DATA.moonAge;
+  const cycle = 29.53;
+
+  // phase: 0=new, 0.5=full, 1=new
+  const phase = age / cycle;
+
+  // Left half always drawn for ages 0-15 (waxing), right half for 15-29 (waning)
+  // For waning gibbous (age ~15-22): left half lit, terminator is an ellipse on the right
+  const isWaxing = phase < 0.5;
+
+  // Draw the lit semicircle
+  ctx.fillStyle = '#d8d8d8';
+  ctx.beginPath();
+  if (isWaxing) {
+    ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2);
+  } else {
+    ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Overlay terminator ellipse
+  // Parametric: at full moon terminator x-radius = 0; at new moon it's r
+  const terminatorX = r * Math.abs(Math.cos(phase * Math.PI));
+  const termSide = isWaxing ? cx - terminatorX : cx + terminatorX;
+
+  ctx.fillStyle = isWaxing ? '#111' : '#d8d8d8';
+  ctx.beginPath();
+  ctx.ellipse(termSide, cy, terminatorX < 2 ? 2 : terminatorX, r, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TIDE GRAPH
+// ─────────────────────────────────────────────────────────────────
+function interpolateTide(t) {
+  const tides = DATA.tides.map(d => ({ ...d, date: new Date(d.iso) }));
+  for (let i = 0; i < tides.length - 1; i++) {
+    if (t >= tides[i].date && t <= tides[i + 1].date) {
+      const span    = tides[i + 1].date - tides[i].date;
+      const elapsed = t - tides[i].date;
+      const frac    = elapsed / span;
+      const cos     = (1 - Math.cos(frac * Math.PI)) / 2;
+      return tides[i].height + (tides[i + 1].height - tides[i].height) * cos;
+    }
+  }
+  return 0;
+}
+
+function drawTideGraph() {
+  const canvas = document.getElementById('tide-canvas');
+  const col    = document.getElementById('center-col');
+  canvas.width  = col.clientWidth - 32;
+  canvas.height = col.clientHeight - 38;
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const now         = new Date();
+  const windowStart = new Date(now.getTime() - 6 * 3600_000);
+  const windowEnd   = new Date(now.getTime() + 6 * 3600_000);
+
+  const MIN_H = -0.6, MAX_H = 4.6;
+
+  function toY(h) {
+    return H - 18 - ((h - MIN_H) / (MAX_H - MIN_H)) * (H - 30);
+  }
+  function toX(t) {
+    return ((t - windowStart) / (windowEnd - windowStart)) * W;
+  }
+
+  // ── Baseline ────────────────────────────────────────────────────
+  ctx.strokeStyle = '#383838';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, toY(0));
+  ctx.lineTo(W, toY(0));
+  ctx.stroke();
+
+  // ── Dotted bar chart ────────────────────────────────────────────
+  const BAR_W   = 5;
+  const DOT_H   = 3;
+  const DOT_GAP = 5;
+
+  for (let x = 0; x < W; x += BAR_W + 2) {
+    const t = new Date(windowStart.getTime() +
+              (x / W) * (windowEnd - windowStart));
+    const h     = interpolateTide(t);
+    const barTop = toY(h);
+    const barBot = toY(0);
+
+    const topY  = h >= 0 ? barTop : toY(0);
+    const botY  = h >= 0 ? toY(0) : barTop;
+    const color = h >= 0 ? '#c8c8c8' : '#666';
+
+    ctx.fillStyle = color;
+    for (let y = botY - DOT_H; y > topY; y -= DOT_GAP) {
+      ctx.fillRect(x, y, DOT_H, DOT_H);
+    }
+  }
+
+  // ── Current-time cursor ─────────────────────────────────────────
+  const nowX = toX(now);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth   = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(nowX, 0);
+  ctx.lineTo(nowX, H - 18);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── High/Low markers ───────────────────────────────────────────
+  DATA.tides.forEach(td => {
+    const d = new Date(td.iso);
+    if (d < windowStart || d > windowEnd) return;
+    const x = toX(d), y = toY(td.height);
+    ctx.fillStyle   = '#fff';
+    ctx.font        = '10px "Share Tech Mono", monospace';
+    ctx.textAlign   = 'center';
+    ctx.fillText(td.type === 'H' ? 'H' : 'L', x, y - 6);
+    ctx.fillText(feetAndInches(td.height), x, y - 18);
+  });
+
+  // ── Hour labels ─────────────────────────────────────────────────
+  ctx.fillStyle  = '#555';
+  ctx.font       = '11px "Share Tech Mono", monospace';
+  ctx.textAlign  = 'center';
+  for (let hr = 0; hr <= 12; hr += 2) {
+    const t  = new Date(windowStart.getTime() + hr * 3600_000);
+    const x  = (hr / 12) * W;
+    const hh = t.getHours() % 12 || 12;
+    const ap = t.getHours() >= 12 ? 'P' : 'A';
+    ctx.fillText(`${hh}${ap}`, x, H - 3);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TIDE CYCLE CURVE
+// ─────────────────────────────────────────────────────────────────
+function drawCycleCurve() {
+  const ctx = document.getElementById('cycle-canvas').getContext('2d');
+  ctx.clearRect(0, 0, 110, 80);
+  ctx.strokeStyle = '#bbb';
+  ctx.lineWidth   = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(8, 68);
+  ctx.bezierCurveTo(28, 68, 38, 12, 55, 12);
+  ctx.bezierCurveTo(72, 12, 82, 68, 102, 68);
+  ctx.stroke();
+
+  // Small current-position dot
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(55, 12, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// WATER TEMP
+// ─────────────────────────────────────────────────────────────────
+document.getElementById('water-temp-display').textContent =
+  `${DATA.waterTempF}\u00b0F`;
+
+// ─────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  drawMoon();
+  drawCycleCurve();
+  drawTideGraph();
+  updateClock();
+
+  setInterval(updateClock, 1000);
+  setInterval(drawTideGraph, 60_000);
+});
+
+</script>
+</body>
+</html>

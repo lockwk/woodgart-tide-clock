@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+venv/
+.venv/
+
+# Logs & temp files
+*.log
+*.tmp
+last-raw-image.png
+last-dithered-image.png

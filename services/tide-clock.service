@@ -1,0 +1,17 @@
+[Unit]
+Description=Tide Clock E-Paper Display
+# Wait until the network is up so the tide data API can be reached
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/python3 /home/pi/tide_display.py
+# Restart automatically if the script crashes
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,4 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="64" cy="64" r="64" transform="matrix(-1 0 0 1 128 0)" fill="white"/>
+<path d="M64 0C48.536 0 36 28.6538 36 64C36 99.3462 48.536 128 64 128C99.3462 128 128 99.3462 128 64C128 28.6538 99.3462 0 64 0Z" fill="black"/>
+</svg>

@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=800">
+<title>Santa Cruz Tide Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  * { cursor: none !important; }
+
+  html, body {
+    width: 800px;
+    background: #fff;
+    color: #000;
+    font-family: 'Inter', sans-serif;
+  }
+
+  #clock {
+    position: relative;
+    width: 800px;
+    height: 480px;
+    background: #fff;
+    transition: opacity 0.6s ease;
+  }
+  #clock.no-data { opacity: 0.2; }
+
+  /* ─── HEADER: left 20, top 16, width 760, height 16 ─── */
+  #header {
+    position: absolute;
+    left: 20px;
+    top: 16px;
+    width: 760px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 10;
+  }
+
+  /* Left group: time + date */
+  #header-left {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 4.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  #header-time { color: #000000; }
+  #header-date { color: #000; }
+
+  /* Right group: rain + wind + water temp */
+  #header-right {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .header-stat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 4.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
+    color: #000;
+  }
+
+  .header-stat img,
+  .header-stat svg {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  /* ─── SEPARATOR LINE: full width, below header ─── */
+  #header-sep {
+    position: absolute;
+    left: 0;
+    top: 48px;
+    width: 800px;
+    height: 1px;
+    background: #000;
+    z-index: 10;
+  }
+
+  /* ─── TIDE CANVAS: full width, top 0, height 276 ─── */
+  #tide-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    z-index: 1;
+  }
+
+  /* ─── BOTTOM ROW: top 276, height 204 ─── */
+  #bottom-row {
+    position: absolute;
+    left: 0;
+    top: 276px;
+    width: 800px;
+    height: 204px;
+    display: flex;
+    z-index: 10;
+  }
+
+  /* ─── PANELS: each 200 × 204px ─── */
+  .panel {
+    position: relative;
+    width: 200px;
+    height: 204px;
+    flex-shrink: 0;
+    background: #fff;
+    border-top: 1px solid #000;
+    border-right: 1px solid #000;
+    overflow: hidden;
+  }
+  .panel:last-child { border-right: none; }
+
+  /* ─── NEXT TIDE PANEL ─── */
+  .next-height {
+    position: absolute;
+    left: calc(50% + 0.5px);
+    top: 31px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .next-height-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .next-height-ft { display: flex; align-items: center; gap: 11px; }
+  .next-height-in { display: flex; align-items: center; gap: 8px; }
+
+  .next-num {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 32px;
+    line-height: 1;
+    letter-spacing: -0.64px;
+    color: #000;
+  }
+
+  .next-unit {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 4.4px;
+    text-transform: uppercase;
+    color: #000;
+  }
+
+  .next-direction {
+    position: absolute;
+    left: calc(50% + 0.5px);
+    transform: translate(-50%, -50%);
+    width: 36px;
+    height: 19px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .next-time-display {
+    position: absolute;
+    left: calc(50% + 0.5px);
+    top: calc(50% + 34.5px);
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 32px;
+    line-height: 1;
+    letter-spacing: -0.64px;
+    color: #000;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .next-label {
+    position: absolute;
+    left: calc(50% + 1px);
+    top: 165.5px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 4.4px;
+    text-transform: uppercase;
+    color: #000;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  /* ─── SUNRISE / SUNSET PANEL ─── */
+  #panel-sun {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 34px 0;
+  }
+
+  .sun-content {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    align-items: center;
+    width: 246px;
+  }
+
+  .sun-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    width: 100%;
+  }
+
+  .sun-row-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sun-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sun-time {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 32px;
+    line-height: 1;
+    letter-spacing: -0.64px;
+    color: #000;
+    white-space: nowrap;
+  }
+
+  .sun-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 4.4px;
+    text-transform: uppercase;
+    color: #000;
+    text-align: center;
+    width: 100%;
+  }
+
+  /* ─── MOON PHASE PANEL ─── */
+  .moon-image {
+    position: absolute;
+    left: 50%;
+    top: calc(50% - 38.5px);
+    transform: translate(-50%, -50%);
+    width: 88px;
+    height: 88px;
+  }
+
+  .moon-age {
+    position: absolute;
+    left: 50%;
+    top: 137px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 32px;
+    line-height: 1;
+    letter-spacing: -0.64px;
+    color: #000;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .moon-label {
+    position: absolute;
+    left: 50%;
+    top: 166.5px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 4.4px;
+    color: #000;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  /* ─── TIDE CYCLE PANEL ─── */
+  .tide-cycle-curve {
+    position: absolute;
+    left: calc(50% + 0.5px);
+    top: calc(50% - 39.5px);
+    transform: translate(-50%, -50%);
+    width: 92px;
+    height: 92px;
+  }
+
+  .tide-cycle-code {
+    position: absolute;
+    left: calc(50% - 0.5px);
+    top: 137px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 32px;
+    line-height: 1;
+    letter-spacing: -0.64px;
+    color: #000;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .tide-cycle-label {
+    position: absolute;
+    left: calc(50% - 1px);
+    top: 166.5px;
+    transform: translate(-50%, -50%);
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 4.4px;
+    color: #000;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div id="clock" class="no-data">
+
+  <!-- Canvas sits behind all HTML elements -->
+  <canvas id="tide-canvas"></canvas>
+
+  <!-- Header -->
+  <div id="header">
+    <div id="header-left">
+      <span id="header-time">10:30 AM</span>
+      <span id="header-date"></span>
+    </div>
+    <div id="header-right">
+
+      <!-- Since last rain -->
+      <div class="header-stat" id="rain-stat" style="visibility: hidden;">
+        <svg width="10" height="16" viewBox="0 0 10 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.81836 0C5.03073 0.000600517 5.22406 0.121539 5.31836 0.311523C5.76036 1.20364 9.63379 9.07954 9.63379 11.1836C9.6337 13.8396 7.47217 16 4.81641 16C2.16085 15.9998 8.76486e-05 13.8391 0 11.1836C0 8.97845 3.87379 1.19228 4.31641 0.30957C4.41149 0.120246 4.60473 0.000167429 4.81641 0H4.81836ZM4.81445 2.20801C3.53312 4.84709 1.33332 9.66002 1.33301 11.0195C1.33301 12.9399 2.89581 14.5027 4.81641 14.5029C6.73694 14.5029 8.2998 12.94 8.2998 11.0195C8.29949 9.82868 6.36124 5.41409 4.81445 2.20801Z" fill="black"/></svg>
+        <span id="header-rain"></span>
+      </div>
+
+      <!-- Wind -->
+      <div class="header-stat">
+        <svg width="30" height="18" viewBox="0 0 30 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.62988 9.71H25.7099C27.3099 9.71 29.2299 11.182 29.2299 13.23C29.2299 15.79 27.3099 16.75 25.7099 16.75C24.1099 16.75 22.1899 15.47 22.1899 13.23" stroke="black" stroke-width="1.5" stroke-linecap="round"/><path d="M0.75 5.55H15.47C16.75 5.55 17.71 4.27 17.71 2.99C17.71 1.71 16.6601 0.750001 15.47 0.750001C14.2799 0.750001 13.23 1.71 13.23 2.99" stroke="black" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span id="header-wind">--</span>
+      </div>
+
+      <!-- Water temp -->
+      <div class="header-stat">
+        <svg width="30" height="9" viewBox="0 0 30 9" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M28.7994 4.72016C29.0421 4.43249 29.4717 4.39707 29.7583 4.6391C30.046 4.88183 30.0818 5.31109 29.8394 5.59809C28.4409 7.25256 26.4804 8.1273 24.1685 8.12738C22.4112 8.12738 20.8448 7.55023 19.816 6.55121C18.7494 7.53838 17.1188 8.12729 15.3609 8.12738C13.5732 8.12738 11.923 7.52592 10.856 6.51899C9.77884 7.51405 8.08024 8.12732 6.29155 8.12738C3.59954 8.12738 1.53797 7.32174 0.165576 5.73188C-0.0801522 5.44736 -0.0488053 5.01742 0.235888 4.77191C0.520452 4.52583 0.950351 4.55779 1.19585 4.84223C2.29826 6.11889 4.01285 6.76606 6.29155 6.76606C7.97912 6.76599 9.59229 6.09583 10.3062 5.09906C10.4339 4.92078 10.64 4.81488 10.8599 4.81488C11.0797 4.81499 11.2857 4.9214 11.4136 5.10004C12.1364 6.11218 13.6858 6.76606 15.3609 6.76606C17.0135 6.76604 18.551 6.11948 19.2779 5.11859C19.4079 4.93992 19.6118 4.84649 19.8375 4.83832C20.0579 4.84113 20.2636 4.95058 20.3892 5.13227C21.0854 6.1399 22.5338 6.76596 24.1685 6.76606C26.0941 6.76606 27.6524 6.07784 28.7994 4.72016ZM1.33745 0.141056C1.63526 -0.0876489 2.06335 -0.0325585 2.29253 0.265079C3.26761 1.53255 4.61342 2.17524 6.29155 2.17524C7.97877 2.17516 9.59229 1.50501 10.3062 0.508243C10.4339 0.329941 10.64 0.224064 10.8599 0.224064C11.0797 0.224173 11.286 0.330579 11.4136 0.50922C12.1368 1.52124 13.6863 2.17524 15.3609 2.17524C17.0134 2.17521 18.551 1.52866 19.2779 0.527775C19.4079 0.349421 19.6118 0.244778 19.8375 0.247501C20.058 0.250312 20.2636 0.359736 20.3892 0.541446C21.0854 1.54909 22.5338 2.17515 24.1685 2.17524C25.7472 2.17524 26.9986 1.58404 27.8882 0.4184C28.1163 0.118825 28.5431 0.0620738 28.8423 0.29047C29.1416 0.518567 29.1993 0.945662 28.9712 1.24457C27.826 2.74479 26.1655 3.53745 24.1685 3.53754C22.4111 3.53754 20.8448 2.95949 19.816 1.96039C18.7494 2.9476 17.1189 3.53744 15.3609 3.53754C13.5735 3.53754 11.923 2.93518 10.856 1.92817C9.77884 2.92323 8.08023 3.53748 6.29155 3.53754C4.19875 3.53754 2.44215 2.69347 1.21343 1.09613C0.984042 0.798016 1.03984 0.370576 1.33745 0.141056Z" fill="black"/></svg>
+        <span id="header-temp">--</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Separator line below header -->
+  <div id="header-sep"></div>
+
+  <!-- Bottom row panels -->
+  <div id="bottom-row">
+    <div class="panel" id="panel-next-tide"></div>
+    <div class="panel" id="panel-tide-cycle"></div>
+    <div class="panel" id="panel-sun"></div>
+    <div class="panel" id="panel-moon"></div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────
+//  DEMO MODE
+//  Set to false to use live API data
+// ─────────────────────────────────────────────────────
+const DEMO_MODE = false;
+
+function loadDemoData() {
+  const today = new Date();
+
+  function tideISO(dayOffset, hours, minutes) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + dayOffset);
+    d.setHours(hours, minutes, 0, 0);
+    return d.toISOString().slice(0, 16);
+  }
+
+  DATA.tides = [
+    // Yesterday
+    { iso: tideISO(-1,  1, 47), height: 1.0, type: 'L' },
+    { iso: tideISO(-1,  8, 12), height: 4.0, type: 'H' },
+    { iso: tideISO(-1, 14, 38), height: 1.1, type: 'L' },
+    { iso: tideISO(-1, 21,  3), height: 4.0, type: 'H' },
+    // Today
+    { iso: tideISO( 0,  2, 33), height: 1.0, type: 'L' },
+    { iso: tideISO( 0,  9, 48), height: 4.0, type: 'H' },
+    { iso: tideISO( 0, 15, 52), height: 1.0, type: 'L' },
+    { iso: tideISO( 0, 22, 14), height: 4.0, type: 'H' },
+    // Tomorrow
+    { iso: tideISO( 1,  3, 18), height: 1.0, type: 'L' },
+    { iso: tideISO( 1, 10, 25), height: 4.0, type: 'H' },
+    { iso: tideISO( 1, 16, 40), height: 1.0, type: 'L' },
+    { iso: tideISO( 1, 22, 55), height: 4.0, type: 'H' },
+  ];
+
+  DATA.graphDate  = today.toISOString().slice(0, 10);
+  DATA.sunrise    = '6:08 AM';
+  DATA.sunset     = '8:04 PM';
+  DATA.waterTempF = 54.2;
+  DATA.windDir    = 'NW';
+  DATA.windMph    = 12;
+  DATA.rain       = { hoursSince: 36, lastAmountIn: 0.3, display: '36 HRS' };
+
+  // Override current time for demo purposes — set to null to use real time
+  const demoHour = new Date(today); demoHour.setHours(7, 0, 0, 0);
+  DATA.demoTime  = demoHour;
+}
+
+// ─────────────────────────────────────────────────────
+//  SVG ASSETS (inlined from _figmaExports_800x480_bw)
+//  Black-on-white versions for ePaper display
+// ─────────────────────────────────────────────────────
+const SVG_HIGH_TIDE = `<svg width="36" height="19" viewBox="0 0 36 19" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.55102 0L17.8224 14.25H1.27959L9.55102 0Z" fill="black"/><path d="M26.449 0L34.7204 14.25H18.1776L26.449 0Z" fill="black"/></svg>`;
+
+const SVG_LOW_TIDE = `<svg width="36" height="19" viewBox="0 0 36 19" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.55102 19L17.8224 4.75H1.27959L9.55102 19Z" fill="black"/><path d="M26.449 19L34.7204 4.75H18.1775L26.449 19Z" fill="black"/></svg>`;
+
+const SVG_SUNRISE = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="7" fill="black" stroke="black" stroke-width="2"/><path fill-rule="evenodd" clip-rule="evenodd" d="M13.7674 8.27763C14.021 8.46419 14.3996 8.31455 14.3996 7.99973C14.3995 4.46526 11.5347 1.60041 8.00018 1.60031C4.46563 1.60032 1.5999 4.4652 1.59979 7.99973C1.59979 8.31453 1.97845 8.46418 2.23203 8.27765C3.19186 7.57161 5.20553 6.40012 8.00018 6.40012C10.7944 6.40018 12.8076 7.57152 13.7674 8.27763Z" fill="white"/></svg>`;
+
+const SVG_SUNSET = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="7" transform="rotate(-180 8 8)" fill="black" stroke="black" stroke-width="2"/><path fill-rule="evenodd" clip-rule="evenodd" d="M2.23262 7.72213C1.97903 7.53557 1.6004 7.6852 1.6004 8.00002C1.6004 11.5346 4.46528 14.4003 7.99982 14.4004C11.5344 14.4004 14.4002 11.5346 14.4002 8.00002C14.4002 7.68523 14.0216 7.53558 13.768 7.72212C12.8082 8.42812 10.7946 9.59963 7.99982 9.59963C5.20551 9.59956 3.19235 8.42821 2.23262 7.72213Z" fill="white"/></svg>`;
+
+const SVG_MOON = {
+  'NEW MOON':        `<svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="44" cy="44" r="43.25" stroke="black" stroke-width="1.5"/></svg>`,
+  'WAXING CRESCENT': `<svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="44" cy="44" r="44" fill="black"/><path d="M44 0C54.6315 0 63.25 19.6995 63.25 44C63.25 68.3005 54.6315 88 44 88C19.6995 88 0 68.3005 0 44C0 19.6995 19.6995 0 44 0Z" fill="white"/></svg>`,
+  'FIRST QUARTER':   `<svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M44 88C55.6695 88 66.8611 83.3643 75.1127 75.1127C83.3643 66.8611 88 55.6695 88 44C88 32.3305 83.3643 21.1389 75.1127 12.8873C66.8611 4.6357 55.6695 -1.39158e-07 44 0V44L44 88Z" fill="black"/></svg>`,
+  'WAXING GIBBOUS':  `<svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M44 88C55.6695 88 66.8611 83.3643 75.1127 75.1127C83.3643 66.8611 88 55.6695 88 44C88 32.3305 83.3643 21.1389 75.1127 12.8873C66.8611 4.6357 55.6695 -1.39158e-07 44 0V44L44 88Z" fill="black"/><ellipse cx="19.25" cy="44" rx="19.25" ry="44" transform="matrix(-1 0 0 1 63.25 0)" fill="black"/></svg>`,
+  'FULL MOON':       `<svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="44" cy="44" r="44" fill="black"/></svg>`,
+  'WANING GIBBOUS':  `<svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M44 88C32.3305 88 21.1389 83.3643 12.8873 75.1127C4.6357 66.8611 -3.24624e-07 55.6695 0 44C3.24624e-07 32.3305 4.6357 21.1389 12.8873 12.8873C21.1389 4.6357 32.3305 -1.39158e-07 44 0V44L44 88Z" fill="black"/><ellipse cx="44" cy="44" rx="19.25" ry="44" fill="black"/></svg>`,
+  'LAST QUARTER':    `<svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M44 88C32.3305 88 21.1389 83.3643 12.8873 75.1127C4.6357 66.8611 -3.24624e-07 55.6695 0 44C3.24624e-07 32.3305 4.6357 21.1389 12.8873 12.8873C21.1389 4.6357 32.3305 -1.39158e-07 44 0V44L44 88Z" fill="black"/></svg>`,
+  'WANING CRESCENT': `<svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="44" cy="44" r="44" transform="matrix(-1 0 0 1 88 0)" fill="black"/><path d="M44 0C33.3685 0 24.75 19.6995 24.75 44C24.75 68.3005 33.3685 88 44 88C68.3005 88 88 68.3005 88 44C88 19.6995 68.3005 0 44 0Z" fill="white"/></svg>`,
+};
+
+const SVG_SPRING_TIDE_CURVE = `<svg width="93" height="92" viewBox="0 0 93 92" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 73.3125C18.0648 73.3125 27.0973 19.4062 46.0653 19.4062C65.0334 19.4062 74.0658 73.3125 92.1307 73.3125" stroke="black" stroke-width="2.5"/><circle cx="46.0653" cy="20.125" r="5.75" fill="black"/></svg>`;
+
+const SVG_HALF_TIDE_CURVE = `<svg width="92" height="92" viewBox="0 0 92 92" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 77.5312C18.0392 77.5312 27.0588 44.4688 46 44.4688C64.9412 44.4688 73.9608 77.5312 92 77.5312" stroke="black" stroke-width="2.5"/><circle cx="46" cy="45" r="5.75" fill="black"/></svg>`;
+
+const SVG_NEAP_TIDE_CURVE = `<svg width="92" height="92" viewBox="0 0 92 92" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 81.4688C18.0392 81.4688 27.0588 68.5312 46 68.5312C64.9412 68.5312 73.9608 81.4688 92 81.4688" stroke="black" stroke-width="2.5"/><circle cx="46" cy="68" r="5.75" fill="black"/></svg>`;
+
+// ─────────────────────────────────────────────────────
+//  DATA
+// ─────────────────────────────────────────────────────
+const DATA = {
+  graphDate:  '2026-04-20',
+  sunrise:    null,
+  sunset:     null,
+  waterTempF: null,
+  windDir:    null,
+  windMph:    null,
+  tides: [],
+  rain: null,
+};
+
+// ─────────────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────────────
+function parseSunTime(timeStr, dateStr) {
+  const [time, ampm] = timeStr.trim().split(' ');
+  let [h, m] = time.split(':').map(Number);
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  return new Date(`${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);
+}
+
+function cosineInterp(h1, h2, t) {
+  const t2 = (1 - Math.cos(t * Math.PI)) / 2;
+  return h1 * (1 - t2) + h2 * t2;
+}
+
+function getHeightAt(ms, pts) {
+  for (let k = 0; k < pts.length - 1; k++) {
+    if (pts[k].ms <= ms && ms <= pts[k + 1].ms) {
+      const frac = (ms - pts[k].ms) / (pts[k + 1].ms - pts[k].ms);
+      return cosineInterp(pts[k].h, pts[k + 1].h, frac);
+    }
+  }
+  if (ms < pts[0].ms) {
+    const frac = (ms - pts[0].ms) / (pts[1].ms - pts[0].ms);
+    return cosineInterp(pts[0].h, pts[1].h, Math.max(0, frac));
+  }
+  const n = pts.length;
+  const frac = (ms - pts[n - 2].ms) / (pts[n - 1].ms - pts[n - 2].ms);
+  return cosineInterp(pts[n - 2].h, pts[n - 1].h, Math.min(1, frac));
+}
+
+function formatHeight(h) {
+  const neg = h < 0;
+  const abs = Math.abs(h);
+  let ft   = Math.floor(abs);
+  let inch = Math.round((abs - ft) * 12);
+  if (inch === 12) { ft += 1; inch = 0; }
+  return `${neg ? '-' : ''}${ft}'${inch}"`;
+}
+
+function formatHoursSinceRain(hours) {
+  return `${hours} HR${hours !== 1 ? 'S' : ''}`;
+}
+
+function formatTime12Short(date) {
+  let h = date.getHours() % 12 || 12;
+  const m = date.getMinutes();
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+function formatTime12Full(date) {
+  let h = date.getHours();
+  const m = date.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function formatHeaderDate(date) {
+  const DAYS   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  return `${DAYS[date.getDay()]} ${MONTHS[date.getMonth()]} ${date.getDate()} ${date.getFullYear()}`;
+}
+
+// ─────────────────────────────────────────────────────
+//  NEXT TIDE PANEL
+// ─────────────────────────────────────────────────────
+function populateNextTide() {
+  let next;
+  if (DATA.tides.length === 0) {
+    document.getElementById('panel-next-tide').innerHTML = `
+      <div class="next-height">
+        <div class="next-height-group">
+          <div class="next-height-ft"><span class="next-num">--</span><span class="next-unit">FT</span></div>
+          <div class="next-height-in"><span class="next-num">--</span><span class="next-unit">IN</span></div>
+        </div>
+      </div>
+      <div class="next-direction" style="top:calc(50% - 9px)">${SVG_HIGH_TIDE}</div>
+      <div class="next-time-display">--:-- --</div>
+      <div class="next-label">NEXT TIDE</div>
+    `;
+    return;
+  } else {
+    const now   = new Date();
+    const nowMs = now.getTime();
+    const withMs = DATA.tides.map(t => ({ ...t, ms: new Date(t.iso).getTime() }));
+    next = withMs.filter(t => t.ms > nowMs).sort((a, b) => a.ms - b.ms)[0];
+    if (!next) return;
+  }
+
+  const isHigh = next.type === 'H';
+  const isNeg  = next.height < 0;
+
+  const abs  = Math.abs(next.height);
+  let ft     = Math.floor(abs);
+  let inch   = Math.round((abs - ft) * 12);
+  if (inch === 12) { ft++; inch = 0; }
+
+  const timeStr  = formatTime12Full(new Date(next.iso));
+  const label    = isHigh ? 'HIGH TIDE' : 'LOW TIDE';
+  const iconSvg  = (!isHigh && !isNeg) ? SVG_LOW_TIDE : SVG_HIGH_TIDE;
+  const iconTop  = (!isHigh && !isNeg) ? 'calc(50% - 15px)' : 'calc(50% - 9px)';
+
+  const heightRow = isNeg
+    ? `<div class="next-height">
+         <span class="next-num">-</span>
+         <div class="next-height-group">
+           <div class="next-height-ft"><span class="next-num">${ft}</span><span class="next-unit">FT</span></div>
+           <div class="next-height-in"><span class="next-num">${inch}</span><span class="next-unit">IN</span></div>
+         </div>
+       </div>`
+    : `<div class="next-height">
+         <div class="next-height-group">
+           <div class="next-height-ft"><span class="next-num">${ft}</span><span class="next-unit">FT</span></div>
+           <div class="next-height-in"><span class="next-num">${inch}</span><span class="next-unit">IN</span></div>
+         </div>
+       </div>`;
+
+  document.getElementById('panel-next-tide').innerHTML = `
+    ${heightRow}
+    <div class="next-direction" style="top:${iconTop}">${iconSvg}</div>
+    <div class="next-time-display">${timeStr}</div>
+    <div class="next-label">${label}</div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────
+//  MOON PHASE PANEL
+// ─────────────────────────────────────────────────────
+function populateMoonPhase() {
+  if (!DATA.moonPhase) {
+    document.getElementById('panel-moon').innerHTML = `
+      <div class="moon-image">${SVG_MOON['NEW MOON']}</div>
+      <div class="moon-age">--</div>
+      <div class="moon-label">-- ----</div>
+    `;
+    return;
+  }
+  const phase = DATA.moonPhase;
+  const age   = DATA.moonAge.toFixed(1);
+  const svg   = SVG_MOON[phase] || SVG_MOON['NEW MOON'];
+
+  document.getElementById('panel-moon').innerHTML = `
+    <div class="moon-image">${svg}</div>
+    <div class="moon-age">${age}</div>
+    <div class="moon-label">${phase}</div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────
+//  SUNRISE / SUNSET PANEL
+// ─────────────────────────────────────────────────────
+function populateSunriseSunset() {
+  const srTime = DATA.sunrise || '--:-- --';
+  const ssTime = DATA.sunset  || '--:-- --';
+  document.getElementById('panel-sun').innerHTML = `
+    <div class="sun-content">
+      <div class="sun-row">
+        <div class="sun-row-top">
+          <div class="sun-icon">${SVG_SUNRISE}</div>
+          <div class="sun-time">${srTime}</div>
+        </div>
+        <div class="sun-label">SUNRISE</div>
+      </div>
+      <div class="sun-row">
+        <div class="sun-row-top">
+          <div class="sun-icon">${SVG_SUNSET}</div>
+          <div class="sun-time">${ssTime}</div>
+        </div>
+        <div class="sun-label">SUNSET</div>
+      </div>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────
+//  TIDE CYCLE PANEL
+// ─────────────────────────────────────────────────────
+function populateTideCycle() {
+  if (!DATA.tideCycle) {
+    document.getElementById('panel-tide-cycle').innerHTML = `
+      <div class="tide-cycle-curve">${SVG_HALF_TIDE_CURVE}</div>
+      <div class="tide-cycle-code">--</div>
+      <div class="tide-cycle-label">---- TIDE</div>
+    `;
+    return;
+  }
+  const state = DATA.tideCycle;
+  let svgCurve, letter, label;
+
+  if (state === 'Spring Tide') {
+    svgCurve = SVG_SPRING_TIDE_CURVE;
+    letter   = 'L';
+    label    = 'SPRING TIDE';
+  } else if (state === 'Half Tide') {
+    svgCurve = SVG_HALF_TIDE_CURVE;
+    letter   = 'M';
+    label    = 'HALF TIDE';
+  } else {
+    svgCurve = SVG_NEAP_TIDE_CURVE;
+    letter   = 'S';
+    label    = 'NEAP TIDE';
+  }
+
+  document.getElementById('panel-tide-cycle').innerHTML = `
+    <div class="tide-cycle-curve">${svgCurve}</div>
+    <div class="tide-cycle-code">${letter}</div>
+    <div class="tide-cycle-label">${label}</div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────
+//  RAIN WIDGET
+// ─────────────────────────────────────────────────────
+function populateRain() {
+  const stat = document.getElementById('rain-stat');
+  const text = document.getElementById('header-rain');
+  if (!stat || !text) return;
+
+  if (DATA.rain) {
+    text.textContent = DATA.rain.display;
+    stat.style.visibility = 'visible';
+    console.info(`✓ Rain widget: "${DATA.rain.display}" (last rain: ${DATA.rain.lastAmountIn}in)`);
+  } else {
+    stat.style.visibility = 'hidden';
+    console.info('✓ Rain widget: hidden (no qualifying rain in past 120h)');
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  HEADER CLOCK
+// ─────────────────────────────────────────────────────
+function updateHeader() {
+  const now = new Date();
+  document.getElementById('header-time').textContent = formatTime12Full(now);
+  document.getElementById('header-date').textContent = formatHeaderDate(now);
+
+  const wind = (DATA.windDir != null && DATA.windMph != null)
+    ? `${DATA.windDir} ${DATA.windMph}MPH`
+    : '--';
+  document.getElementById('header-wind').textContent = wind;
+
+  const temp = DATA.waterTempF != null ? `${DATA.waterTempF}°F` : '--';
+  document.getElementById('header-temp').textContent = temp;
+}
+
+// ─────────────────────────────────────────────────────
+//  TIDE GRAPH  (unchanged from previous version — Step 3 will update)
+// ─────────────────────────────────────────────────────
+function drawTideGraph() {
+  const canvas = document.getElementById('tide-canvas');
+  const ctx    = canvas.getContext('2d');
+  const W = 800, H = 276;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width        = W * dpr;
+  canvas.height       = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+
+  const CURVE_TOP    = 118;
+  const CURVE_BOTTOM = 221;
+  const HOUR_Y       = 254;
+  const DOT_RADIUS   = 5;
+
+  // No data — nothing to draw
+  if (DATA.tides.length === 0 || !DATA.sunrise || !DATA.sunset) return;
+
+  const sunriseDate = parseSunTime(DATA.sunrise, DATA.graphDate);
+  const sunsetDate  = parseSunTime(DATA.sunset,  DATA.graphDate);
+  const tStart = sunriseDate.getTime();
+  const tEnd   = sunsetDate.getTime();
+
+  function toX(ms) { return ((ms - tStart) / (tEnd - tStart)) * W; }
+
+  const allHeights = DATA.tides.map(t => t.height);
+  const minH = Math.min(...allHeights) - 0.5;
+  const maxH = Math.max(...allHeights) + 0.5;
+  function toY(h) {
+    const norm = (h - minH) / (maxH - minH);
+    return CURVE_TOP + (CURVE_BOTTOM - CURVE_TOP) * (1 - norm);
+  }
+
+  const pts = DATA.tides.map(t => ({ ms: new Date(t.iso).getTime(), h: t.height }));
+
+  // 1 — Tide curve
+  ctx.save();
+  ctx.beginPath();
+  const SAMPLES = 900;
+  let first = true;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const ms = tStart + (i / SAMPLES) * (tEnd - tStart);
+    const x  = toX(ms);
+    const y  = toY(getHeightAt(ms, pts));
+    first ? (ctx.moveTo(x, y), first = false) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2.5;
+  ctx.lineJoin    = 'round';
+  ctx.lineCap     = 'round';
+  ctx.stroke();
+  ctx.restore();
+
+  // 2 — Orange time bar (y:48 → y:276, sits above curve)
+  const now   = DATA.demoTime || new Date();
+  const nowMs = now.getTime();
+  if (nowMs >= tStart && nowMs <= tEnd) {
+    ctx.save();
+    ctx.fillStyle = '#ff8000';
+    ctx.fillRect(toX(nowMs) - 2, 48, 4, 228);
+    ctx.restore();
+  }
+
+  // 3 — Peak dots
+  const peaksInWindow = DATA.tides.filter(t => {
+    const ms = new Date(t.iso).getTime();
+    return ms > tStart && ms < tEnd;
+  });
+
+  peaksInWindow.forEach(tide => {
+    const x = toX(new Date(tide.iso).getTime());
+    const y = toY(tide.height);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, DOT_RADIUS, 0, Math.PI * 2);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // 4 — Hour labels
+  ctx.save();
+  ctx.fillStyle     = '#000';
+  ctx.font          = '600 12px Inter, sans-serif';
+  ctx.letterSpacing = '4.8px';
+  ctx.textAlign     = 'left';
+  ctx.textBaseline  = 'middle';
+
+  const srHour = sunriseDate.getHours() + sunriseDate.getMinutes() / 60;
+  const ssHour = sunsetDate.getHours()  + sunsetDate.getMinutes()  / 60;
+  let hourCursor = Math.ceil(srHour);
+  if (hourCursor % 2 === 0) hourCursor += 1;
+
+  for (let h = hourCursor; h < ssHour; h += 2) {
+    const d = new Date(sunriseDate);
+    d.setHours(h, 0, 0, 0);
+    const x = toX(d.getTime());
+    const label = h < 12 ? `${h}A` : (h === 12 ? '12P' : `${h - 12}P`);
+    ctx.fillText(label, x, HOUR_Y);
+  }
+  ctx.restore();
+
+  // 5 — Peak labels (type / height / time) — highest layer
+  peaksInWindow.forEach(tide => {
+    const x = toX(new Date(tide.iso).getTime());
+    const y = toY(tide.height);
+    ctx.save();
+    ctx.fillStyle     = '#000';
+    ctx.font          = '600 12px Inter, sans-serif';
+    ctx.letterSpacing = '4.8px';
+    ctx.textAlign     = 'left';
+    ctx.textBaseline  = 'middle';
+    ctx.fillText(tide.type,                             x, y - 43);
+    ctx.fillText(formatHeight(tide.height),              x, y - 29);
+    ctx.fillText(formatTime12Short(new Date(tide.iso)),  x, y - 15);
+    ctx.restore();
+  });
+}
+
+// ─────────────────────────────────────────────────────
+//  DATA FETCHING  (unchanged)
+// ─────────────────────────────────────────────────────
+async function fetchTidePredictions() {
+  const STATION = '9413745';
+  const fmtDate = d =>
+    `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  const today     = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const tomorrow  = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const url = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter'
+    + `?begin_date=${fmtDate(yesterday)}&end_date=${fmtDate(tomorrow)}`
+    + `&station=${STATION}&product=predictions&datum=MLLW`
+    + `&time_zone=lst_ldt&interval=hilo&units=english&format=json`;
+  try {
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (!json.predictions) throw new Error(json.error?.message || 'No predictions in response');
+    DATA.tides = json.predictions.map(p => ({
+      iso:    p.t.replace(' ', 'T'),
+      height: parseFloat(p.v),
+      type:   p.type,
+    }));
+    DATA.graphDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    console.info(`✓ Tide predictions loaded: ${DATA.tides.length} points for ${DATA.graphDate}`);
+  } catch (err) {
+    console.warn('Tide fetch failed — tides unavailable.', err.message);
+  }
+}
+
+function degreesToCardinal(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+async function fetchWeather() {
+  const LAT = 36.9741, LNG = -122.0308;
+  try {
+    const [windRes, tempRes] = await Promise.all([
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LNG}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph`),
+      fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LNG}&current=sea_surface_temperature`),
+    ]);
+    const [windJson, tempJson] = await Promise.all([windRes.json(), tempRes.json()]);
+    if (windJson.current) {
+      DATA.windMph = Math.round(windJson.current.wind_speed_10m);
+      DATA.windDir = degreesToCardinal(windJson.current.wind_direction_10m);
+    }
+    if (tempJson.current) {
+      DATA.waterTempF = parseFloat((tempJson.current.sea_surface_temperature * 9 / 5 + 32).toFixed(1));
+    }
+    console.info(`✓ Weather loaded: ${DATA.windDir} ${DATA.windMph}mph, water ${DATA.waterTempF}°F`);
+  } catch (err) {
+    console.warn('Weather fetch failed — header stats unavailable.', err.message);
+  }
+}
+
+async function fetchRainData() {
+  const LAT = 36.9741, LNG = -122.0308;
+  const THRESHOLD_IN = 0.1;
+  const MAX_HOURS    = 120;
+  const url = `https://api.open-meteo.com/v1/forecast`
+    + `?latitude=${LAT}&longitude=${LNG}`
+    + `&hourly=precipitation`
+    + `&past_days=5`
+    + `&timezone=America%2FLos_Angeles`
+    + `&precipitation_unit=inch`;
+  try {
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (!json.hourly?.time || !json.hourly?.precipitation) {
+      throw new Error('Unexpected response shape from Open-Meteo rain endpoint');
+    }
+    const times  = json.hourly.time;
+    const precip = json.hourly.precipitation;
+    const localStr      = new Date().toLocaleString('sv-SE', { timeZone: 'America/Los_Angeles' });
+    const currentHourStr = localStr.slice(0, 13).replace(' ', 'T') + ':00';
+    let currentIdx = times.indexOf(currentHourStr);
+    if (currentIdx === -1) {
+      currentIdx = 0;
+      for (let i = times.length - 1; i >= 0; i--) {
+        if (times[i] <= currentHourStr) { currentIdx = i; break; }
+      }
+    }
+    let lastRainIdx = -1;
+    for (let i = currentIdx; i >= 0; i--) {
+      if (precip[i] != null && precip[i] >= THRESHOLD_IN) { lastRainIdx = i; break; }
+    }
+    if (lastRainIdx === -1) { DATA.rain = null; return; }
+    const hoursSince = currentIdx - lastRainIdx;
+    if (hoursSince > MAX_HOURS) { DATA.rain = null; return; }
+    const lastAmountIn = Math.round(precip[lastRainIdx] * 10) / 10;
+    DATA.rain = { hoursSince, lastAmountIn, display: formatHoursSinceRain(hoursSince) };
+    console.info(`✓ Rain data: last rain ${hoursSince}h ago (${lastAmountIn}in) — display: "${DATA.rain.display}"`);
+  } catch (err) {
+    console.warn('Rain data fetch failed — widget will be hidden.', err.message);
+    DATA.rain = null;
+  }
+}
+
+async function fetchSunriseSunset() {
+  const LAT = 36.9741, LNG = -122.0308;
+  const url = `https://api.sunrise-sunset.org/json?lat=${LAT}&lng=${LNG}&formatted=0`;
+  try {
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (json.status !== 'OK') throw new Error(json.status);
+    const toLocalTime = isoStr => {
+      const d = new Date(isoStr);
+      let h = d.getHours();
+      const m = d.getMinutes();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
+    };
+    DATA.sunrise = toLocalTime(json.results.sunrise);
+    DATA.sunset  = toLocalTime(json.results.sunset);
+    console.info(`✓ Sunrise/Sunset loaded: ${DATA.sunrise} / ${DATA.sunset}`);
+  } catch (err) {
+    console.warn('Sunrise/Sunset fetch failed — keeping dummy data.', err.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  ANIMATION HELPERS  (unchanged)
+// ─────────────────────────────────────────────────────
+function animatePanel(id, updateFn, duration = 300) {
+  const panel = document.getElementById(id);
+  Array.from(panel.children).forEach(el => {
+    el.style.transition = `opacity ${duration}ms ease`;
+    el.style.opacity = '0';
+  });
+  setTimeout(() => {
+    updateFn();
+    Array.from(panel.children).forEach(el => { el.style.opacity = '0'; });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      Array.from(panel.children).forEach(el => {
+        el.style.transition = `opacity ${duration}ms ease`;
+        el.style.opacity = '1';
+      });
+    }));
+  }, duration);
+}
+
+function animateElement(id, updateFn, duration = 300) {
+  const el = document.getElementById(id);
+  el.style.transition = `opacity ${duration}ms ease`;
+  el.style.opacity    = '0';
+  setTimeout(() => {
+    updateFn();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.style.transition = `opacity ${duration}ms ease`;
+      el.style.opacity    = '1';
+    }));
+  }, duration);
+}
+
+function animateTideGraph(duration = 300) {
+  animateElement('tide-canvas', drawTideGraph, duration);
+}
+
+// ─────────────────────────────────────────────────────
+//  MOON + TIDE CYCLE  (unchanged)
+// ─────────────────────────────────────────────────────
+function computeMoonData(date) {
+  const LUNAR_CYCLE = 29.53058867;
+  const REF_MS = Date.UTC(2000, 0, 6, 6, 44, 0);
+  const daysSince = (date.getTime() - REF_MS) / 86400000;
+  const age = ((daysSince % LUNAR_CYCLE) + LUNAR_CYCLE) % LUNAR_CYCLE;
+  let phase;
+  if      (age <  1.85) phase = 'NEW MOON';
+  else if (age <  7.38) phase = 'WAXING CRESCENT';
+  else if (age <  9.22) phase = 'FIRST QUARTER';
+  else if (age < 14.77) phase = 'WAXING GIBBOUS';
+  else if (age < 16.61) phase = 'FULL MOON';
+  else if (age < 22.15) phase = 'WANING GIBBOUS';
+  else if (age < 23.99) phase = 'LAST QUARTER';
+  else                   phase = 'WANING CRESCENT';
+  return { age: parseFloat(age.toFixed(1)), phase };
+}
+
+function computeTideCycle(moonAge) {
+  const pos = moonAge % 14.765;
+  if (pos < 4.5)  return 'Spring Tide';
+  if (pos < 6.5)  return 'Half Tide';
+  if (pos < 10.5) return 'Neap Tide';
+  if (pos < 12.5) return 'Half Tide';
+  return 'Spring Tide';
+}
+
+// ─────────────────────────────────────────────────────
+//  NEXT TIDE CHANGE DETECTION  (unchanged)
+// ─────────────────────────────────────────────────────
+let _currentNextTideIso = null;
+
+function _peekNextTideIso() {
+  if (!DATA.tides.length) return null;
+  const nowMs  = Date.now();
+  const sorted = DATA.tides
+    .map(t => ({ iso: t.iso, ms: new Date(t.iso).getTime() }))
+    .filter(t => t.ms > nowMs)
+    .sort((a, b) => a.ms - b.ms);
+  return sorted[0] ? sorted[0].iso : null;
+}
+
+// ─────────────────────────────────────────────────────
+//  SCHEDULED REFRESHES  (unchanged)
+// ─────────────────────────────────────────────────────
+async function _runHourlyWeather() {
+  await Promise.allSettled([fetchWeather(), fetchRainData()]);
+  animateElement('header-wind', () => {
+    document.getElementById('header-wind').textContent =
+      (DATA.windDir != null && DATA.windMph != null) ? `${DATA.windDir} ${DATA.windMph}MPH` : '--';
+  });
+  animateElement('header-temp', () => {
+    document.getElementById('header-temp').textContent =
+      DATA.waterTempF != null ? `${DATA.waterTempF}°F` : '--';
+  });
+  populateRain();
+  const now          = new Date();
+  const msToNextHour = (60 - now.getMinutes()) * 60000
+                     - now.getSeconds()         * 1000
+                     - now.getMilliseconds();
+  setTimeout(_runHourlyWeather, msToNextHour);
+}
+
+function scheduleHourlyWeather() {
+  const now          = new Date();
+  const msToNextHour = (60 - now.getMinutes()) * 60000
+                     - now.getSeconds()         * 1000
+                     - now.getMilliseconds();
+  setTimeout(_runHourlyWeather, msToNextHour);
+}
+
+async function dailyRefresh() {
+  DATA.tides    = [];
+  DATA.sunrise  = null;
+  DATA.sunset   = null;
+  _currentNextTideIso = null;
+  await Promise.allSettled([fetchTidePredictions(), fetchSunriseSunset(), fetchRainData()]);
+  const now      = new Date();
+  const moonData = computeMoonData(now);
+  DATA.moonPhase = moonData.phase;
+  DATA.moonAge   = moonData.age;
+  DATA.tideCycle = computeTideCycle(moonData.age);
+  animatePanel('panel-next-tide',  populateNextTide);
+  animatePanel('panel-tide-cycle', populateTideCycle);
+  animatePanel('panel-sun',        populateSunriseSunset);
+  animatePanel('panel-moon',       populateMoonPhase);
+  animateTideGraph();
+  populateRain();
+  console.info('✓ Daily refresh complete');
+}
+
+function scheduleDailyRefresh() {
+  const now  = new Date();
+  const next = new Date(now);
+  next.setHours(0, 1, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next - now;
+  setTimeout(async () => {
+    await dailyRefresh();
+    setInterval(dailyRefresh, 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+// ─────────────────────────────────────────────────────
+//  INIT  (unchanged)
+// ─────────────────────────────────────────────────────
+(function init() {
+  updateHeader();
+  populateNextTide();
+  populateTideCycle();
+  populateSunriseSunset();
+  populateMoonPhase();
+  drawTideGraph();
+  setInterval(() => {
+    updateHeader();
+    drawTideGraph();
+    const freshIso = _peekNextTideIso();
+    if (freshIso !== _currentNextTideIso) {
+      if (_currentNextTideIso !== null) {
+        animatePanel('panel-next-tide', populateNextTide);
+      }
+      _currentNextTideIso = freshIso;
+    }
+  }, 1000);
+
+  function _populateAll() {
+    const now      = new Date();
+    const moonData = computeMoonData(now);
+    DATA.moonPhase = moonData.phase;
+    DATA.moonAge   = moonData.age;
+    DATA.tideCycle = computeTideCycle(moonData.age);
+    updateHeader();
+    populateNextTide();
+    populateTideCycle();
+    populateSunriseSunset();
+    populateMoonPhase();
+    drawTideGraph();
+    populateRain();
+    _currentNextTideIso = _peekNextTideIso();
+    document.getElementById('clock').classList.remove('no-data');
+  }
+
+  if (DEMO_MODE) {
+    // ── DEMO: skip all API fetches, use static sample data ──
+    loadDemoData();
+    _populateAll();
+    console.info('⚙️ DEMO MODE active — set DEMO_MODE = false to use live data');
+  } else {
+    // ── LIVE: fetch from NOAA, Open-Meteo, sunrise-sunset.org ──
+    Promise.allSettled([fetchTidePredictions(), fetchSunriseSunset(), fetchWeather(), fetchRainData()])
+      .then(() => {
+        try {
+          _populateAll();
+        } catch (err) {
+          console.error('Error populating panels after fetch:', err);
+          document.getElementById('clock').classList.remove('no-data');
+        }
+      });
+
+    scheduleHourlyWeather();
+    scheduleDailyRefresh();
+  }
+})();
+
+</script>
+</body>
+</html>
