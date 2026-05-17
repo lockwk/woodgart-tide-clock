@@ -7,8 +7,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi
-ExecStart=/usr/bin/python3 /home/pi/tide_display.py
+WorkingDirectory=/home/pi/tide-clock
+ExecStart=/usr/bin/python3 /home/pi//tide-clock/src/tide_display.py
 # Restart automatically if the script crashes
 Restart=on-failure
 RestartSec=30
