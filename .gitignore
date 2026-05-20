@@ -17,3 +17,9 @@ venv/
 *.tmp
 last-raw-image.png
 last-dithered-image.png
+
+# Editor config
+.obsidian/
+
+# Large reference PDFs (available on Waveshare website)
+docs/*.pdf
