@@ -18,6 +18,9 @@ venv/
 last-raw-image.png
 last-dithered-image.png
 
+# Generated output (test renders, QA screenshots, etc.)
+output/
+
 # Editor config
 .obsidian/
 
