@@ -60,7 +60,9 @@ typedef struct {
     /* ---- Weather ---- */
     int   wind_speed_mph;         /* e.g. 3                         */
     char  wind_direction[8];      /* "N", "SW", "NNE", etc.         */
-    int   rain_hours_since;       /* hours since last ≥0.25" rain   */
+    int   rain_hours_since;       /* hours since last >=0.25" rain.
+                                   * -1 = null/unknown (fetcher had no data).
+                                   * Display rule: hide if <= 0 or > 72.    */
     float water_temp_f;           /* sea surface temp in °F         */
 
     /* ---- Sun ---- */

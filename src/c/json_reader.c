@@ -355,7 +355,7 @@ int parse_clock_data(const char *json, ClockData *out)
     extract_string(v, out->wind_direction, sizeof(out->wind_direction));
 
     v = find_value(json, "rain_hours_since");
-    out->rain_hours_since = extract_int(v);
+    out->rain_hours_since = (v && strncmp(v, "null", 4) == 0) ? -1 : extract_int(v);
 
     v = find_value(json, "water_temp_f");
     out->water_temp_f = (float)extract_double(v);
@@ -425,7 +425,10 @@ void print_clock_data(const ClockData *data)
 
     printf("  wind         : %s %d mph\n",
            data->wind_direction, data->wind_speed_mph);
-    printf("  rain hrs     : %d\n",  data->rain_hours_since);
+    if (data->rain_hours_since < 0)
+        printf("  rain hrs     : (null)\n");
+    else
+        printf("  rain hrs     : %d\n", data->rain_hours_since);
     printf("  water temp   : %.1f F\n", (double)data->water_temp_f);
     printf("\n");
 
