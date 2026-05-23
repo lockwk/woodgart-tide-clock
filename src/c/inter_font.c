@@ -1,6 +1,10 @@
 /*
  * inter_font.c — Lightweight renderer for tide-clock bitmap fonts.
  * See inter_font.h for documentation.
+ *
+ * adv_w is stored as 26.6 fixed-point (pixels * 64) so that sub-pixel
+ * advance widths accumulate without per-glyph rounding error.
+ * The kern table stays in whole pixels (adjustments are small integers).
  */
 
 #include "inter_font.h"
@@ -8,30 +12,55 @@
 #include <string.h>
 
 /* -------------------------------------------------------------------------
- * Glyph lookup
+ * Glyph lookup — returns index (for kern table) or -1 if not found.
  * ---------------------------------------------------------------------- */
 
-const InterGlyph *inter_find_glyph(const InterFont *font, char ch)
+static int inter_find_glyph_idx(const InterFont *font, char ch)
 {
     for (int i = 0; i < font->num_glyphs; i++) {
         if (font->glyphs[i].ch == ch)
-            return &font->glyphs[i];
+            return i;
     }
-    return NULL;
+    return -1;
+}
+
+const InterGlyph *inter_find_glyph(const InterFont *font, char ch)
+{
+    int idx = inter_find_glyph_idx(font, ch);
+    return (idx >= 0) ? &font->glyphs[idx] : NULL;
+}
+
+/* -------------------------------------------------------------------------
+ * Kern lookup — whole-pixel adjustment after glyph a, before glyph b.
+ * Returns 0 if either character is not in the font or there is no kern table.
+ * ---------------------------------------------------------------------- */
+
+static int inter_kern(const InterFont *font, int idx_a, int idx_b)
+{
+    if (!font->kern_table || idx_a < 0 || idx_b < 0)
+        return 0;
+    return (int)font->kern_table[idx_a * font->num_glyphs + idx_b];
 }
 
 /* -------------------------------------------------------------------------
  * Measurement
+ *
+ * Accumulates advance widths in 26.6 fixed-point to avoid rounding drift,
+ * then returns rounded integer pixels.
  * ---------------------------------------------------------------------- */
 
 int inter_measure_string(const InterFont *font, const char *str)
 {
-    int width = 0;
+    int width_fp  = 0;   /* 26.6 fixed-point accumulator */
+    int prev_idx  = -1;
     while (*str) {
-        const InterGlyph *g = inter_find_glyph(font, *str++);
-        if (g) width += g->adv_w;
+        int idx = inter_find_glyph_idx(font, *str++);
+        if (idx < 0) continue;
+        width_fp += inter_kern(font, prev_idx, idx) << 6;  /* px → 26.6 */
+        width_fp += font->glyphs[idx].adv_w;               /* already 26.6 */
+        prev_idx = idx;
     }
-    return width;
+    return (width_fp + 32) >> 6;  /* round to nearest integer pixel */
 }
 
 /* -------------------------------------------------------------------------
@@ -58,11 +87,21 @@ int inter_draw_string(uint8_t *buf, int buf_w, int buf_h,
                       int x, int baseline_y,
                       const char *str, const InterFont *font)
 {
+    int x_fp     = x << 6;   /* 26.6 fixed-point pen position */
+    int prev_idx = -1;
     while (*str) {
-        const InterGlyph *g = inter_find_glyph(font, *str++);
-        if (!g) continue;
+        int idx = inter_find_glyph_idx(font, *str++);
+        if (idx < 0) continue;
 
+        /* Apply kern adjustment from previous glyph (whole pixels → 26.6) */
+        x_fp += inter_kern(font, prev_idx, idx) << 6;
+        prev_idx = idx;
+
+        const InterGlyph *g = &font->glyphs[idx];
         if (g->width > 0 && g->height > 0) {
+            /* Integer pixel position for this glyph */
+            int pen_x  = x_fp >> 6;
+
             /* Top-left corner of this glyph in screen coordinates.
              *
              * baseline_y is the y position of the text baseline.
@@ -70,7 +109,7 @@ int inter_draw_string(uint8_t *buf, int buf_w, int buf_h,
              *   screen_bottom = baseline_y - ofs_y
              *   screen_top    = screen_bottom - g->height
              */
-            int draw_x = x + g->ofs_x;
+            int draw_x = pen_x + g->ofs_x;
             int draw_y = baseline_y - g->ofs_y - (int)g->height;
 
             const uint8_t *data   = font->bitmaps + g->data_offset;
@@ -95,9 +134,9 @@ int inter_draw_string(uint8_t *buf, int buf_w, int buf_h,
             }
         }
 
-        x += g->adv_w;
+        x_fp += g->adv_w;   /* adv_w is already 26.6 */
     }
-    return x;
+    return x_fp >> 6;   /* return integer pixel position */
 }
 
 /* -------------------------------------------------------------------------
@@ -148,12 +187,19 @@ int inter_draw_string_4gray(uint8_t *buf, int buf_w, int buf_h,
                              uint8_t fg,
                              const char *str, const InterFont *font)
 {
+    int x_fp     = x << 6;   /* 26.6 fixed-point pen position */
+    int prev_idx = -1;
     while (*str) {
-        const InterGlyph *g = inter_find_glyph(font, *str++);
-        if (!g) continue;
+        int idx = inter_find_glyph_idx(font, *str++);
+        if (idx < 0) continue;
 
+        x_fp += inter_kern(font, prev_idx, idx) << 6;
+        prev_idx = idx;
+
+        const InterGlyph *g = &font->glyphs[idx];
         if (g->width > 0 && g->height > 0) {
-            int draw_x = x + g->ofs_x;
+            int pen_x  = x_fp >> 6;
+            int draw_x = pen_x + g->ofs_x;
             int draw_y = baseline_y - g->ofs_y - (int)g->height;
 
             const uint8_t *data   = font->bitmaps + g->data_offset;
@@ -179,7 +225,7 @@ int inter_draw_string_4gray(uint8_t *buf, int buf_w, int buf_h,
             }
         }
 
-        x += g->adv_w;
+        x_fp += g->adv_w;
     }
-    return x;
+    return x_fp >> 6;
 }

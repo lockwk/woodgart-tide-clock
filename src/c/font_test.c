@@ -8,17 +8,19 @@
  *   gcc font_test.c inter_font.c \
  *       fonts/inter_sb_96.c fonts/inter_sb_56.c fonts/inter_sb_28.c \
  *       fonts/inter_sb_20.c fonts/inter_lt_16.c \
- *       -o font_test
+ *       -I. -o font_test
  *
  * Run:
  *   ./font_test
  *   # outputs font_test.bmp — open with any image viewer
+ *   # also prints pixel widths to stdout for Figma comparison
  *
  * What to check:
  *   • Large numbers (96px, 56px) look clean and proportional
  *   • Small labels (16px) are readable — not broken or jagged
  *   • Letter spacing feels right compared with the Figma design
  *   • No garbled glyphs or obvious rendering artifacts
+ *   • stdout widths match what Figma reports for the same strings
  */
 
 #include <stdio.h>
@@ -38,7 +40,7 @@
  * ---------------------------------------------------------------------- */
 
 #define CANVAS_W  960
-#define CANVAS_H  520
+#define CANVAS_H  620
 #define MARGIN_L   40   /* left margin for all text */
 
 /* -------------------------------------------------------------------------
@@ -110,7 +112,7 @@ static int write_bmp(const char *path, const uint8_t *pixels,
 }
 
 /* -------------------------------------------------------------------------
- * Thin horizontal rule
+ * Drawing helpers
  * ---------------------------------------------------------------------- */
 
 static void draw_rule(uint8_t *buf, int y, int x0, int x1)
@@ -118,6 +120,50 @@ static void draw_rule(uint8_t *buf, int y, int x0, int x1)
     if (y < 0 || y >= CANVAS_H) return;
     for (int x = x0; x < x1 && x < CANVAS_W; x++)
         buf[y * CANVAS_W + x] = 0xAA;   /* mid-gray */
+}
+
+/*
+ * Draw a vertical tick mark at pixel x spanning y0..y1 (inclusive).
+ * Used to show the measured end-of-string position for Figma comparison.
+ */
+static void draw_tick(uint8_t *buf, int x, int y0, int y1)
+{
+    if (x < 0 || x >= CANVAS_W) return;
+    for (int y = y0; y <= y1 && y < CANVAS_H; y++) {
+        if (y >= 0)
+            buf[y * CANVAS_W + x] = 0x55;   /* dark gray tick */
+    }
+}
+
+/* -------------------------------------------------------------------------
+ * Render one section: draw the string, print its pixel width, draw tick.
+ *
+ *   buf        — canvas
+ *   baseline_y — text baseline
+ *   str        — string to render
+ *   font       — font to use
+ *   label      — printed to stdout (e.g. "96px")
+ * ---------------------------------------------------------------------- */
+static int render_section(uint8_t *buf, int baseline_y,
+                           const char *str, const InterFont *font,
+                           const char *label)
+{
+    int measured = inter_measure_string(font, str);
+    int end_x    = inter_draw_string(buf, CANVAS_W, CANVAS_H,
+                                     MARGIN_L, baseline_y, str, font);
+
+    /* Tick mark spanning roughly the cap-height of this font */
+    int tick_top    = baseline_y - font->ascent;
+    int tick_bottom = baseline_y + (font->line_height - font->ascent);
+    draw_tick(buf, MARGIN_L + measured, tick_top, tick_bottom);
+
+    printf("  %-6s  \"%s\"\n"
+           "           measured=%dpx  end_x=%dpx\n"
+           "           → In Figma, select this text and check W in the "
+           "right-panel; it should read %dpx\n",
+           label, str, measured, end_x - MARGIN_L, measured);
+
+    return end_x;
 }
 
 /* -------------------------------------------------------------------------
@@ -136,13 +182,14 @@ int main(void)
 
     int y = 0;   /* tracks current baseline as we move down the canvas */
 
+    printf("font_test — pixel width diagnostics\n");
+    printf("(dark tick at the right edge of each string = measured width)\n\n");
+
     /* ------------------------------------------------------------------
      * Section 1 — 96px SemiBold  (large tide height display)
-     *   e.g. "1 FT 3 IN" in the Next Tide panel
      * ---------------------------------------------------------------- */
     y += inter_sb_96.ascent + 10;
-    inter_draw_string(buf, CANVAS_W, CANVAS_H,
-                      MARGIN_L, y, "1 FT 3 IN", &inter_sb_96);
+    render_section(buf, y, "1 FT 3 IN", &inter_sb_96, "96px");
     draw_rule(buf, y + inter_sb_96.line_height - inter_sb_96.ascent + 4,
               MARGIN_L, CANVAS_W - MARGIN_L);
 
@@ -150,8 +197,7 @@ int main(void)
      * Section 2 — 56px SemiBold  (secondary numbers)
      * ---------------------------------------------------------------- */
     y += inter_sb_96.line_height + 16;
-    inter_draw_string(buf, CANVAS_W, CANVAS_H,
-                      MARGIN_L, y, "3'5\" HIGH", &inter_sb_56);
+    render_section(buf, y, "3'5\" HIGH", &inter_sb_56, "56px");
     draw_rule(buf, y + inter_sb_56.line_height - inter_sb_56.ascent + 4,
               MARGIN_L, CANVAS_W - MARGIN_L);
 
@@ -159,37 +205,36 @@ int main(void)
      * Section 3 — 28px SemiBold  (time strings, graph labels)
      * ---------------------------------------------------------------- */
     y += inter_sb_56.line_height + 14;
-    inter_draw_string(buf, CANVAS_W, CANVAS_H,
-                      MARGIN_L, y, "1:17 PM  SAT MAY 22 2026", &inter_sb_28);
+    render_section(buf, y, "1:17 PM  SAT MAY 22 2026", &inter_sb_28, "28px");
     draw_rule(buf, y + inter_sb_28.line_height - inter_sb_28.ascent + 4,
               MARGIN_L, CANVAS_W - MARGIN_L);
 
     /* ------------------------------------------------------------------
-     * Section 4 — 20px SemiBold  (tide labels on graph: "H 3'5\"")
+     * Section 4 — 20px SemiBold  (tide labels on graph)
      * ---------------------------------------------------------------- */
     y += inter_sb_28.line_height + 12;
-    inter_draw_string(buf, CANVAS_W, CANVAS_H,
-                      MARGIN_L, y,
-                      "H 3'5\"  1:17     L 2'1\"  6:00", &inter_sb_20);
+    render_section(buf, y,
+                   "H 3'5\"  1:17     L 2'1\"  6:00", &inter_sb_20, "20px");
     draw_rule(buf, y + inter_sb_20.line_height - inter_sb_20.ascent + 4,
               MARGIN_L, CANVAS_W - MARGIN_L);
 
     /* ------------------------------------------------------------------
-     * Section 5 — 16px Light  (sub-labels: HIGH TIDE, SPRING TIDE …)
+     * Section 5 — 16px Light  (sub-labels)
      * ---------------------------------------------------------------- */
     y += inter_sb_20.line_height + 12;
-    inter_draw_string(buf, CANVAS_W, CANVAS_H,
-                      MARGIN_L, y,
-                      "HIGH TIDE    SPRING TIDE    SUNRISE    SUNSET",
-                      &inter_lt_16);
+    render_section(buf, y,
+                   "HIGH TIDE    SPRING TIDE    SUNRISE    SUNSET",
+                   &inter_lt_16, "16px");
 
     /* ------------------------------------------------------------------
-     * Section 6 — digits only stress test (all ten digits at 96px)
+     * Section 6 — digits stress test (all ten at 96px)
      * ---------------------------------------------------------------- */
     y += inter_lt_16.line_height + 20;
     y += inter_sb_96.ascent;
-    inter_draw_string(buf, CANVAS_W, CANVAS_H,
-                      MARGIN_L, y, "0123456789", &inter_sb_96);
+    render_section(buf, y, "0123456789", &inter_sb_96, "96px-d");
+
+    printf("\nDone. Compare the numbers above against Figma's W value\n"
+           "for each text element at the matching font size.\n");
 
     /* Write BMP */
     const char *out = "font_test.bmp";

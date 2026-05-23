@@ -34,7 +34,8 @@ typedef struct {
     int8_t   ofs_y;        /* baseline-to-bbox-bottom offset               */
                            /*   positive → bottom above baseline (caps)    */
                            /*   negative → bottom below baseline (descend) */
-    uint16_t adv_w;        /* horizontal advance width in pixels           */
+    uint16_t adv_w;        /* advance width, 26.6 fixed-point pixels       */
+                           /*   integer pixels ≈ adv_w / 64               */
     uint32_t data_offset;  /* byte offset into font->bitmaps               */
 } InterGlyph;
 
@@ -42,7 +43,11 @@ typedef struct {
     const uint8_t    *bitmaps;     /* packed 4bpp pixel data               */
     const InterGlyph *glyphs;      /* one entry per char in charset        */
     const char       *charset;     /* ordered character list               */
-    uint16_t          num_glyphs;  /* length of glyphs[] and charset       */
+    const int8_t     *kern_table;  /* NxN kern adjustments (pixels), or   */
+                                   /* NULL to skip kerning.                */
+                                   /* kern_table[i*N+j]: px to add after  */
+                                   /* glyph i when followed by glyph j.   */
+    uint16_t          num_glyphs;  /* length of glyphs[], charset, kern N */
     uint8_t           line_height; /* full line height in pixels           */
     uint8_t           ascent;      /* distance from baseline to line top   */
 } InterFont;
