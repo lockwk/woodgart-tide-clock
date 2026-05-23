@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <time.h>
 
 /* Waveshare driver headers (resolved via -I flags in Makefile) */
 #include "DEV_Config.h"
@@ -82,6 +83,32 @@ int main(void)
         return 1;
     }
     free(json);
+
+    /* ------------------------------------------------------------------
+     * 1b. Overwrite time fields with the live system clock.
+     *     Tide/weather data is legitimately cached, but the displayed
+     *     time must always reflect when the renderer actually runs.
+     * ---------------------------------------------------------------- */
+    {
+        time_t     now    = time(NULL);
+        struct tm *lt     = localtime(&now);
+        int        hour24 = lt->tm_hour;
+        int        min    = lt->tm_min;
+        int        h12    = hour24 % 12;
+        if (h12 == 0) h12 = 12;
+        const char *ampm  = (hour24 >= 12) ? "PM" : "AM";
+
+        snprintf(data.current_time_str, sizeof(data.current_time_str),
+                 "%d:%02d %s", h12, min, ampm);
+        strftime(data.current_date_str, sizeof(data.current_date_str),
+                 "%a %b %d %Y", lt);
+        /* strftime gives mixed case; upcase it to match the design */
+        for (char *p = data.current_date_str; *p; p++)
+            if (*p >= 'a' && *p <= 'z') *p -= 32;
+
+        data.current_hour   = hour24;
+        data.current_minute = min;
+    }
 
     /* ------------------------------------------------------------------
      * 2. Print parsed data to stdout (diagnostic -- Phase 4 deliverable)
