@@ -67,6 +67,14 @@ const InterGlyph *inter_find_glyph(const InterFont *font, char ch);
 int inter_measure_string(const InterFont *font, const char *str);
 
 /*
+ * inter_measure_string_tracked — same but adds letter_spacing_px between
+ * every pair of glyphs (like CSS letter-spacing / Figma tracking).
+ * Pass letter_spacing_px = 0 to get the same result as inter_measure_string.
+ */
+int inter_measure_string_tracked(const InterFont *font, const char *str,
+                                  int letter_spacing_px);
+
+/*
  * inter_draw_string — render a string into an 8-bit grayscale buffer.
  *
  *   buf        — 1 byte per pixel, row-major, 0=black 255=white
@@ -103,5 +111,17 @@ int inter_draw_string_4gray(uint8_t *buf, int buf_w, int buf_h,
                              int x, int baseline_y,
                              uint8_t fg,
                              const char *str, const InterFont *font);
+
+/*
+ * inter_draw_string_4gray_tracked — same but adds letter_spacing_px between
+ * every pair of glyphs.  Use for text with Figma tracking (e.g. status bar
+ * uses tracking=5.6px at 14px = 5.6px extra per glyph).
+ * Pass letter_spacing_px = 0 to get identical behaviour to the base variant.
+ */
+int inter_draw_string_4gray_tracked(uint8_t *buf, int buf_w, int buf_h,
+                                     int x, int baseline_y,
+                                     uint8_t fg,
+                                     const char *str, const InterFont *font,
+                                     int letter_spacing_px);
 
 #endif /* INTER_FONT_H */

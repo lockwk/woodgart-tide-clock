@@ -13,6 +13,25 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>   /* roundf */
+
+/* Phase 5: status bar */
+#include "fonts/inter_b_14.h"
+#include "icons/icon_rain.h"
+#include "icons/icon_wind.h"
+#include "icons/icon_watertemp.h"
+
+/* Phase 6/7: tide graph (uncomment when implementing)
+ * #include "fonts/inter_sb_20.h"
+ */
+
+/* Phase 8: bottom panels (uncomment when implementing)
+ * #include "fonts/inter_lt_48.h"
+ * #include "fonts/inter_lt_16.h"
+ * #include "fonts/inter_sb_28.h"
+ * #include "fonts/inter_sb_56.h"
+ * #include "fonts/inter_sb_96.h"
+ */
 
 /* ==========================================================================
  * Low-level drawing primitives
@@ -134,14 +153,121 @@ void draw_str_r(uint8_t *buf, int x_right, int baseline_y,
     draw_str(buf, x_right - w, baseline_y, str, font);
 }
 
+/* ---- Tracked variants ---- */
+
+int draw_str_t(uint8_t *buf, int x, int baseline_y,
+               const char *str, const InterFont *font, int sp)
+{
+    return inter_draw_string_4gray_tracked(buf, DISP_W, DISP_H,
+                                           x, baseline_y, GRAY1, str, font, sp);
+}
+
+void draw_str_tc(uint8_t *buf, int center_x, int baseline_y,
+                 const char *str, const InterFont *font, int sp)
+{
+    int w = inter_measure_string_tracked(font, str, sp);
+    draw_str_t(buf, center_x - w / 2, baseline_y, str, font, sp);
+}
+
+void draw_str_tr(uint8_t *buf, int x_right, int baseline_y,
+                 const char *str, const InterFont *font, int sp)
+{
+    int w = inter_measure_string_tracked(font, str, sp);
+    draw_str_t(buf, x_right - w, baseline_y, str, font, sp);
+}
+
 /* ==========================================================================
  * High-level render stubs (filled in Phases 5-8)
  * ======================================================================= */
 
 void render_status_bar(uint8_t *buf, const ClockData *data)
 {
-    /* Phase 5 */
-    (void)buf; (void)data;
+    /*
+     * Status bar: y = 0..63, full 960px width.
+     * Figma: Header frame at x=24, y=24, w=912, h=16.
+     * Font: inter_b_14, tracking = STATUS_TRACKING (6px).
+     * Baseline: vertically centred in the 64px bar.
+     *   baseline_y = STATUS_H/2 + inter_b_14.ascent/2
+     */
+    const InterFont *font = &inter_b_14;
+    /* Centre text vertically in the 64px bar */
+    int baseline_y = STATUS_H / 2 + font->ascent / 2;
+
+    int x_left  = 24;          /* left margin (matches Figma header x=24) */
+    int x_right = 24 + 912;    /* right edge of header frame = 936         */
+    int gap     = 32;          /* Figma gap between weather items           */
+    int icon_gap = 12;         /* Figma gap between icon and text label     */
+
+    /* ---- Left: time then date, separated by 24px gap ---- */
+    int x = draw_str_t(buf, x_left, baseline_y,
+                       data->current_time_str, font, STATUS_TRACKING);
+    draw_str_t(buf, x + 24, baseline_y,
+               data->current_date_str, font, STATUS_TRACKING);
+
+    /* ---- Right: weather items, right-aligned as a group ---- */
+    /*
+     * Build right-to-left so each item's right edge butts against the
+     * previous one.  Order (right to left): water temp, wind, rain.
+     * rain is conditional — only shown when 1 <= rain_hours_since <= 72.
+     */
+
+    int show_rain = (data->rain_hours_since >= 1 &&
+                     data->rain_hours_since <= 72);
+
+    /* water temp — always shown, rightmost */
+    char water_buf[24];
+    /* Format as "XX.X°F" — degree sign is U+00B0 but we only have ASCII.
+     * Use a simple "F" suffix since the degree glyph isn't in our charset. */
+    snprintf(water_buf, sizeof(water_buf), "%.1fF", (double)data->water_temp_f);
+    int w_water_text = inter_measure_string_tracked(font, water_buf, STATUS_TRACKING);
+
+    /* wind — always shown */
+    char wind_buf[24];
+    snprintf(wind_buf, sizeof(wind_buf), "%s %dMPH",
+             data->wind_direction, data->wind_speed_mph);
+    int w_wind_text = inter_measure_string_tracked(font, wind_buf, STATUS_TRACKING);
+
+    /* since rain — conditional */
+    char rain_buf[24];
+    int w_rain = 0;
+    if (show_rain) {
+        snprintf(rain_buf, sizeof(rain_buf), "%d HRS", data->rain_hours_since);
+        int w_rain_text = inter_measure_string_tracked(font, rain_buf, STATUS_TRACKING);
+        w_rain = icon_rain.Width + icon_gap + w_rain_text;
+    }
+
+    /* Lay out right-to-left */
+    int rx = x_right;
+
+    /* Water temp */
+    rx -= w_water_text;
+    draw_str_t(buf, rx, baseline_y, water_buf, font, STATUS_TRACKING);
+    rx -= icon_gap;
+    draw_icon(buf, &icon_watertemp, rx - (int)icon_watertemp.Width,
+              STATUS_H / 2 - (int)icon_watertemp.Height / 2);
+    rx -= (int)icon_watertemp.Width;
+
+    /* Wind */
+    rx -= gap;
+    rx -= w_wind_text;
+    draw_str_t(buf, rx, baseline_y, wind_buf, font, STATUS_TRACKING);
+    rx -= icon_gap;
+    draw_icon(buf, &icon_wind, rx - (int)icon_wind.Width,
+              STATUS_H / 2 - (int)icon_wind.Height / 2);
+    rx -= (int)icon_wind.Width;
+
+    /* Rain (conditional) */
+    if (show_rain) {
+        rx -= gap;
+        rx -= w_rain - (int)icon_rain.Width - icon_gap;  /* text width */
+        draw_str_t(buf, rx, baseline_y, rain_buf, font, STATUS_TRACKING);
+        rx -= icon_gap;
+        draw_icon(buf, &icon_rain, rx - (int)icon_rain.Width,
+                  STATUS_H / 2 - (int)icon_rain.Height / 2);
+    }
+
+    /* Divider line across full width */
+    draw_hline_full(buf, DIVIDER_Y1, GRAY1);
 }
 
 void render_tide_graph(uint8_t *buf, const ClockData *data)

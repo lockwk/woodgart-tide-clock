@@ -31,13 +31,14 @@ SPI_SRC := $(LIB)/Config/dev_hardware_SPI.c
 WS_SRCS := $(EPD_SRC) $(CFG_SRC) $(SPI_SRC)
 
 # Project sources
+# Add new font .c files here as each phase generates them.
 PROJ_SRCS := tide_clock.c \
              json_reader.c \
              layout.c \
              tide_curve.c \
              inter_font.c \
-             fonts/inter_lt_48.c \
-             fonts/inter_b_14.c
+             fonts/inter_b_14.c \
+             fonts/inter_lt_48.c
 
 TARGET := epd
 

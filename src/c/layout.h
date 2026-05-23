@@ -37,26 +37,30 @@
 #define GRAY4  0x03   /* #FFFFFF - white  : background                   */
 
 /*
- * Layout regions (pixel rows):
- *   y =   0 ..  34   status bar   (STATUS_H = 35 px)
- *   y =  35           divider line
- *   y =  36 .. 439   tide graph   (GRAPH_H  = 404 px)
- *   y = 440           divider line
- *   y = 441 .. 679   bottom panels (PANEL_H = 239 px)
+ * Layout regions (pixel rows) — measured from Figma "Tide Clock e-Paper 13.3":
+ *
+ *   y =   0 ..  63   status bar   (STATUS_H = 64 px)
+ *   y =  64           divider line  (9.41% of 680)
+ *   y =  65 .. 419   tide graph   (GRAPH_H  = 355 px)
+ *   y = 420           bottom panels start (panels include 2px top border)
+ *   y = 420 .. 679   bottom panels (PANEL_H = 260 px)
  */
-#define STATUS_H      35
-#define DIVIDER_Y1    35    /* status bar -> graph divider    */
-#define GRAPH_TOP     36
-#define GRAPH_BOT     439
-#define DIVIDER_Y2    440   /* graph -> bottom panels divider */
-#define PANEL_TOP     441
+#define STATUS_H      64
+#define DIVIDER_Y1    64    /* status bar -> graph divider    */
+#define GRAPH_TOP     65
+#define GRAPH_BOT     419
+#define DIVIDER_Y2    420   /* graph -> bottom panels divider */
+#define PANEL_TOP     420
 #define PANEL_BOT     679
 #define PANEL_W       240   /* each of the four equal bottom panels */
+#define PANEL_H       260
 
 /* Tide curve drawing bounds within the graph area.
- * 34 px above CURVE_TOP_Y for peak labels; 19 px below CURVE_BOT_Y baseline. */
-#define CURVE_TOP_Y   70
-#define CURVE_BOT_Y   420
+ * Labels (70 px tall) sit above each peak circle — CURVE_TOP_Y must leave
+ * enough room above for the topmost label to stay inside the graph area.
+ * CURVE_BOT_Y leaves a small gap above the panel divider for the hour label. */
+#define CURVE_TOP_Y   150   /* y of the highest tide circle center */
+#define CURVE_BOT_Y   400   /* y of the lowest tide circle center  */
 
 /* ==========================================================================
  * Low-level drawing primitives (implemented in layout.c)
@@ -86,9 +90,18 @@ void draw_icon(uint8_t *buf, const sICON *icon, int dst_x, int dst_y);
 
 #include "inter_font.h"
 
+/* Standard (no extra letter spacing) */
 int  draw_str  (uint8_t *buf, int x, int baseline_y, const char *str, const InterFont *font);
 void draw_str_c(uint8_t *buf, int center_x, int baseline_y, const char *str, const InterFont *font);
 void draw_str_r(uint8_t *buf, int x_right,  int baseline_y, const char *str, const InterFont *font);
+
+/* Tracked — adds letter_spacing_px between every glyph (Figma "tracking") */
+int  draw_str_t (uint8_t *buf, int x, int baseline_y, const char *str, const InterFont *font, int sp);
+void draw_str_tc(uint8_t *buf, int center_x, int baseline_y, const char *str, const InterFont *font, int sp);
+void draw_str_tr(uint8_t *buf, int x_right,  int baseline_y, const char *str, const InterFont *font, int sp);
+
+/* Status bar letter spacing (5.6 px, rounded to 6) */
+#define STATUS_TRACKING  6
 
 /* ==========================================================================
  * High-level render functions (Phases 5-8)

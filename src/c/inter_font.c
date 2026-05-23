@@ -63,6 +63,29 @@ int inter_measure_string(const InterFont *font, const char *str)
     return (width_fp + 32) >> 6;  /* round to nearest integer pixel */
 }
 
+int inter_measure_string_tracked(const InterFont *font, const char *str,
+                                  int letter_spacing_px)
+{
+    if (letter_spacing_px == 0)
+        return inter_measure_string(font, str);
+
+    int width_fp = 0;
+    int prev_idx = -1;
+    int n_glyphs = 0;
+    while (*str) {
+        int idx = inter_find_glyph_idx(font, *str++);
+        if (idx < 0) continue;
+        width_fp += inter_kern(font, prev_idx, idx) << 6;
+        width_fp += font->glyphs[idx].adv_w;
+        prev_idx = idx;
+        n_glyphs++;
+    }
+    /* letter_spacing is added after each glyph except the last */
+    if (n_glyphs > 1)
+        width_fp += (n_glyphs - 1) * (letter_spacing_px << 6);
+    return (width_fp + 32) >> 6;
+}
+
 /* -------------------------------------------------------------------------
  * 8-bit grayscale renderer
  * ---------------------------------------------------------------------- */
@@ -226,6 +249,60 @@ int inter_draw_string_4gray(uint8_t *buf, int buf_w, int buf_h,
         }
 
         x_fp += g->adv_w;
+    }
+    return x_fp >> 6;
+}
+
+int inter_draw_string_4gray_tracked(uint8_t *buf, int buf_w, int buf_h,
+                                     int x, int baseline_y,
+                                     uint8_t fg,
+                                     const char *str, const InterFont *font,
+                                     int letter_spacing_px)
+{
+    if (letter_spacing_px == 0)
+        return inter_draw_string_4gray(buf, buf_w, buf_h, x, baseline_y,
+                                       fg, str, font);
+
+    int x_fp     = x << 6;
+    int prev_idx = -1;
+    while (*str) {
+        int idx = inter_find_glyph_idx(font, *str++);
+        if (idx < 0) continue;
+
+        x_fp += inter_kern(font, prev_idx, idx) << 6;
+        prev_idx = idx;
+
+        const InterGlyph *g = &font->glyphs[idx];
+        if (g->width > 0 && g->height > 0) {
+            int pen_x  = x_fp >> 6;
+            int draw_x = pen_x + g->ofs_x;
+            int draw_y = baseline_y - g->ofs_y - (int)g->height;
+
+            const uint8_t *data   = font->bitmaps + g->data_offset;
+            int            stride = (g->width + 1) / 2;
+
+            for (int row = 0; row < g->height; row++) {
+                int sy = draw_y + row;
+                if (sy < 0 || sy >= buf_h) continue;
+
+                for (int col = 0; col < g->width; col++) {
+                    int sx = draw_x + col;
+                    if (sx < 0 || sx >= buf_w) continue;
+
+                    uint8_t byte   = data[row * stride + col / 2];
+                    uint8_t alpha4 = (col % 2 == 0) ? (byte >> 4) : (byte & 0x0F);
+                    if (alpha4 == 0) continue;
+
+                    uint8_t bg  = get_4gray_pixel(buf, buf_w, sx, sy);
+                    uint8_t out = blend4gray(alpha4, fg, bg);
+                    set_4gray_pixel(buf, buf_w, sx, sy, out);
+                }
+            }
+        }
+
+        x_fp += g->adv_w;
+        /* Add letter-spacing after every glyph (CSS / Figma behaviour) */
+        if (*str) x_fp += letter_spacing_px << 6;
     }
     return x_fp >> 6;
 }
