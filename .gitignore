@@ -18,8 +18,8 @@ venv/
 last-raw-image.png
 last-dithered-image.png
 
-# Generated output (test renders, QA screenshots, etc.)
-output/
+# Test scripts, compiled binaries, and test renders (not for version control)
+test/
 
 # Editor config
 .obsidian/
