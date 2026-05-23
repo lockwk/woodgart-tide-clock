@@ -403,6 +403,52 @@ static const TideLabel tide_labels[] = {
 #define N_LABELS  3
 
 /* ==========================================================================
+ * Grayscale legend
+ *
+ * Four filled boxes — one per gray level — so you can confirm all four shades
+ * are rendering correctly on the display before judging font/curve quality.
+ *
+ * Placement: upper-left corner of the graph area, just inside the daylight
+ * region (after the left night fill ends at ~x=75, before the current-hour
+ * bar at ~x=267).  Well above the tide curve in that x range.
+ *
+ *   x = 84 .. 263   y = 44 .. 83   (40 × 40 px each, 8 px gap)
+ *
+ * Each box has a 1 px black border (so the white box is still visible against
+ * the white background) and a short label centred below it.
+ * ======================================================================= */
+
+static void render_grayscale_legend(uint8_t *buf)
+{
+    static const uint8_t levels[4]         = { GRAY1,   GRAY2,  GRAY3,   GRAY4   };
+    static const char *const labels[4]     = { "BLACK", "DARK", "LIGHT", "WHITE" };
+
+    const int box_w  = 40;
+    const int box_h  = 40;
+    const int gap    = 8;
+    const int orig_x = 84;   /* left edge of first box */
+    const int orig_y = 44;   /* top edge of all boxes  */
+
+    for (int i = 0; i < 4; i++) {
+        int bx = orig_x + i * (box_w + gap);
+        int by = orig_y;
+
+        /* Filled box */
+        fill_rect(buf, bx, by, bx + box_w - 1, by + box_h - 1, levels[i]);
+
+        /* 1 px black border on all four sides */
+        draw_line(buf, bx - 1,      by - 1,      bx + box_w,  by - 1,      GRAY1); /* top    */
+        draw_line(buf, bx - 1,      by + box_h,  bx + box_w,  by + box_h,  GRAY1); /* bottom */
+        draw_line(buf, bx - 1,      by - 1,      bx - 1,      by + box_h,  GRAY1); /* left   */
+        draw_line(buf, bx + box_w,  by - 1,      bx + box_w,  by + box_h,  GRAY1); /* right  */
+
+        /* Label centred below the box */
+        int lbl_y = by + box_h + 4 + inter_lt_16.ascent;
+        draw_str_c(buf, bx + box_w / 2, lbl_y, labels[i], &inter_lt_16);
+    }
+}
+
+/* ==========================================================================
  * Rendering
  * ======================================================================= */
 
@@ -694,6 +740,11 @@ static void render(uint8_t *buf)
                     + 4 + inter_lt_16.ascent;
         draw_str_c(buf, cx, lbl_y, "NEW", &inter_lt_16);
     }
+
+    /* ------------------------------------------------------------------
+     * 5.  GRAYSCALE LEGEND
+     * ---------------------------------------------------------------- */
+    render_grayscale_legend(buf);
 }
 
 /* ==========================================================================
