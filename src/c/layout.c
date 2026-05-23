@@ -198,10 +198,8 @@ void render_status_bar(uint8_t *buf, const ClockData *data)
     int gap     = 32;          /* Figma gap between weather items           */
     int icon_gap = 12;         /* Figma gap between icon and text label     */
 
-    /* ---- Left: time then date, separated by 24px gap ---- */
-    int x = draw_str_t(buf, x_left, baseline_y,
-                       data->current_time_str, font, STATUS_TRACKING);
-    draw_str_t(buf, x + 24, baseline_y,
+    /* ---- Left: date only (time removed — e-paper refreshes hourly) ---- */
+    draw_str_t(buf, x_left, baseline_y,
                data->current_date_str, font, STATUS_TRACKING);
 
     /* ---- Right: weather items, right-aligned as a group ---- */
