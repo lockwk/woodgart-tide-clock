@@ -118,11 +118,8 @@ src/
     tide_curve.h/.c      ← spline interpolation + graph rendering
     layout.h/.c          ← section drawing functions
     fonts/
-      inter_sb_96.h      ← Inter SemiBold, ~96px tall (large tide height)
-      inter_sb_56.h      ← Inter SemiBold, ~56px (medium numbers)
-      inter_sb_28.h      ← Inter SemiBold, ~28px (panel labels)
-      inter_sb_20.h      ← Inter SemiBold, ~20px (tide labels on graph)
-      inter_lt_16.h      ← Inter Light, ~16px (sub-labels like HIGH TIDE)
+      inter_lt_48.h      ← Inter Light, 48px (tide height, spring tide letter)
+      inter_b_14.h       ← Inter Bold, 14px (all labels, times, status bar)
     icons/
       icon_rain.h
       icon_wind.h
@@ -179,14 +176,11 @@ This is mostly a refactor/extension of the existing display logic in `tide_displ
 2. Quantize to 4 gray levels (GRAY1–GRAY4)
 3. Emit a `.h` file in the same format as Waveshare's `Font24` — a `sFONT` struct with a `uint8_t table[]` and `Width`/`Height`.
 
-**Sizes to generate** (derived from the design):
+**Sizes to generate** (confirmed against design in Phase 3.5):
 | Header | Font | Target px height | Used for |
 |--------|------|-----------------|---------|
-| `inter_sb_96.h` | SemiBold | 96 | Tide height large number (e.g. "1") |
-| `inter_sb_56.h` | SemiBold | 56 | Secondary number ("ft", "3", "in") |
-| `inter_sb_28.h` | SemiBold | 28 | Time strings in graph labels |
-| `inter_sb_20.h` | SemiBold | 20 | Tide labels on graph (H 3'5") |
-| `inter_lt_16.h` | Light | 16 | Sub-labels (HIGH TIDE, SPRING TIDE) |
+| `inter_lt_48.h` | Light | 48 | Tide height large number (e.g. "1 FT 3 IN"), spring tide cycle letter |
+| `inter_b_14.h` | Bold | 14 | Everything else — labels, times, status bar, panel text |
 
 **Deliverable:** `tools/font_to_c.py` + all five `.h` files in `src/c/fonts/`.  
 **Test:** Write a minimal C test program that renders "Hello 123" to a BMP on the Pi using the new fonts; visually compare against the Figma design.

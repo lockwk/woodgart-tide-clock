@@ -11,11 +11,8 @@ Usage:
     python3 tools/font_to_c.py
 
 Output files (src/c/fonts/):
-    inter_sb_96.c / .h   — Inter SemiBold 96px  (large tide height number)
-    inter_sb_56.c / .h   — Inter SemiBold 56px  (secondary numbers)
-    inter_sb_28.c / .h   — Inter SemiBold 28px  (time strings, graph labels)
-    inter_sb_20.c / .h   — Inter SemiBold 20px  (tide labels on graph)
-    inter_lt_16.c / .h   — Inter Light 16px     (sub-labels: HIGH TIDE, etc.)
+    inter_lt_48.c / .h   — Inter Light 48px   (large tide height number, spring tide letter)
+    inter_b_14.c  / .h   — Inter Bold  14px   (everything else: labels, times, status bar)
 """
 
 import os
@@ -62,19 +59,13 @@ CHARSET = (
 if VARIABLE_FONT:
     TTF = _VARIABLE
     FONTS = [
-        ("inter_sb_96", TTF, 96, 600, 32),
-        ("inter_sb_56", TTF, 56, 600, 32),
-        ("inter_sb_28", TTF, 28, 600, 28),
-        ("inter_sb_20", TTF, 20, 600, 20),
-        ("inter_lt_16", TTF, 16, 300, 16),
+        ("inter_lt_48", TTF, 48, 300, 32),   # Light 48px — tide height, spring tide letter
+        ("inter_b_14",  TTF, 14, 700, 14),   # Bold  14px — all labels, times, status bar
     ]
 else:
     FONTS = [
-        ("inter_sb_96", _SEMI_TTF, 96, None, None),
-        ("inter_sb_56", _SEMI_TTF, 56, None, None),
-        ("inter_sb_28", _SEMI_TTF, 28, None, None),
-        ("inter_sb_20", _SEMI_TTF, 20, None, None),
-        ("inter_lt_16", _LITE_TTF, 16, None, None),
+        ("inter_lt_48", _LITE_TTF, 48, None, None),
+        ("inter_b_14",  _SEMI_TTF, 14, None, None),   # fall back to SemiBold if no Bold file
     ]
 
 

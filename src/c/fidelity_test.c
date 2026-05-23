@@ -6,8 +6,8 @@
  * live data — everything is hardcoded.
  *
  * Elements under test (from the Phase 3.5 spec):
- *   1. Large Inter numbers   — "1 FT 3 IN" at 96 + 56 px in Panel 1
- *   2. Small label text      — inter_lt_16 at 16 px (panel labels, tick labels)
+ *   1. Large Inter numbers   — "1 FT 3 IN" in inter_lt_48 (48px Light) in Panel 1
+ *   2. Small label text      — inter_b_14 (14px Bold) throughout
  *   3. Tide curve            — natural cubic spline through 5 hardcoded points
  *   4. One icon              — icon_sunrise in the status bar (28×28)
  *   5. Divider lines & panel grid
@@ -15,7 +15,7 @@
  * After photographing the result, decide:
  *   ✅ Looks great  → proceed to Phase 4 (Makefile + JSON reader + scaffolding)
  *   ⚠️ Font too small/large  → re-run font_to_c.py at revised pt size, retest
- *   ⚠️ Small text broken     → switch inter_lt_16 to inter_sb font at that size
+ *   ⚠️ Small text broken     → adjust weight or size in font_to_c.py, retest
  *   ⚠️ Curve jagged          → increase line thickness from 2px to 3px
  *
  * -----------------------------------------------------------------------
@@ -23,8 +23,7 @@
  *
  *   gcc fidelity_test.c \
  *       inter_font.c \
- *       fonts/inter_sb_96.c fonts/inter_sb_56.c fonts/inter_sb_28.c \
- *       fonts/inter_sb_20.c fonts/inter_lt_16.c \
+ *       fonts/inter_lt_48.c fonts/inter_b_14.c \
  *       /home/pi/e-Paper/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_13in3k.c \
  *       /home/pi/e-Paper/RaspberryPi_JetsonNano/c/lib/Config/DEV_Config.c \
  *       /home/pi/e-Paper/RaspberryPi_JetsonNano/c/lib/Config/dev_hardware_SPI.c \
@@ -53,13 +52,10 @@
 #include "DEV_Config.h"
 #include "EPD_13in3k.h"
 
-/* Font renderer + all five Inter sizes */
+/* Font renderer + two Inter sizes */
 #include "inter_font.h"
-#include "fonts/inter_sb_96.h"
-#include "fonts/inter_sb_56.h"
-#include "fonts/inter_sb_28.h"
-#include "fonts/inter_sb_20.h"
-#include "fonts/inter_lt_16.h"
+#include "fonts/inter_lt_48.h"   /* Light 48px — tide height, spring tide letter */
+#include "fonts/inter_b_14.h"    /* Bold  14px — all labels, times, status bar   */
 
 /* Icon types + icons used in this test */
 #include "icons/icon_types.h"
@@ -443,8 +439,8 @@ static void render_grayscale_legend(uint8_t *buf)
         draw_line(buf, bx + box_w,  by - 1,      bx + box_w,  by + box_h,  GRAY1); /* right  */
 
         /* Label centred below the box */
-        int lbl_y = by + box_h + 4 + inter_lt_16.ascent;
-        draw_str_c(buf, bx + box_w / 2, lbl_y, labels[i], &inter_lt_16);
+        int lbl_y = by + box_h + 4 + inter_b_14.ascent;
+        draw_str_c(buf, bx + box_w / 2, lbl_y, labels[i], &inter_b_14);
     }
 }
 
@@ -463,9 +459,9 @@ static void render(uint8_t *buf)
     {
         /* Time + date, left-aligned with a small margin */
         int baseline = STATUS_H - 7;   /* 28 px fonts fit in 35 px row */
-        int x = draw_str(buf, 14, baseline, "9:35 AM", &inter_sb_28);
+        int x = draw_str(buf, 14, baseline, "9:35 AM", &inter_b_14);
         x += 16;
-        x = draw_str(buf, x, baseline, "SAT MAY 22 2026", &inter_sb_28);
+        x = draw_str(buf, x, baseline, "SAT MAY 22 2026", &inter_b_14);
 
         /* Weather icons + values, right-aligned in the remaining space.
          * Draw from right edge inward: water temp → wind → rain. */
@@ -473,25 +469,25 @@ static void render(uint8_t *buf)
         int xr = DISP_W - 14;
 
         /* Water temp */
-        int tw = inter_measure_string(&inter_lt_16, "58.8F");
+        int tw = inter_measure_string(&inter_b_14, "58.8F");
         xr -= tw;
-        draw_str(buf, xr, baseline, "58.8F", &inter_lt_16);
+        draw_str(buf, xr, baseline, "58.8F", &inter_b_14);
         xr -= (int)icon_watertemp.Width + 4;
         draw_icon(buf, &icon_watertemp, xr, iy);
         xr -= 24;
 
         /* Wind */
-        tw = inter_measure_string(&inter_lt_16, "S 3MPH");
+        tw = inter_measure_string(&inter_b_14, "S 3MPH");
         xr -= tw;
-        draw_str(buf, xr, baseline, "S 3MPH", &inter_lt_16);
+        draw_str(buf, xr, baseline, "S 3MPH", &inter_b_14);
         xr -= (int)icon_wind.Width + 4;
         draw_icon(buf, &icon_wind, xr, iy);
         xr -= 24;
 
         /* Rain (hours since last rain) */
-        tw = inter_measure_string(&inter_lt_16, "56 HRS");
+        tw = inter_measure_string(&inter_b_14, "56 HRS");
         xr -= tw;
-        draw_str(buf, xr, baseline, "56 HRS", &inter_lt_16);
+        draw_str(buf, xr, baseline, "56 HRS", &inter_b_14);
         xr -= (int)icon_rain.Width + 4;
         draw_icon(buf, &icon_rain, xr, iy);
 
@@ -530,8 +526,8 @@ static void render(uint8_t *buf)
         int label_y = GRAPH_BOT - 4;  /* baseline near bottom of bar */
         /* In GRAY4 (white) so it shows on the black bar */
         inter_draw_string_4gray(buf, DISP_W, DISP_H,
-                                x_current - inter_measure_string(&inter_lt_16, "9 AM") / 2,
-                                label_y, GRAY4, "9 AM", &inter_lt_16);
+                                x_current - inter_measure_string(&inter_b_14, "9 AM") / 2,
+                                label_y, GRAY4, "9 AM", &inter_b_14);
     }
 
     /* --- 2d. Tide curve (natural cubic spline) ------------------------ */
@@ -569,16 +565,16 @@ static void render(uint8_t *buf)
             lbl_y  = dot_y - 22;   /* height string above dot */
             time_y = dot_y - 8;    /* time string just above dot */
         } else {
-            lbl_y  = dot_y + 8 + inter_sb_20.ascent;  /* below dot */
-            time_y = dot_y + 8 + inter_sb_20.line_height + 2 + inter_lt_16.ascent;
+            lbl_y  = dot_y + 8 + inter_b_14.ascent;  /* below dot */
+            time_y = dot_y + 8 + inter_b_14.line_height + 2 + inter_b_14.ascent;
         }
 
         /* Clamp labels inside the graph area */
-        if (lbl_y < CURVE_TOP_Y + inter_sb_20.ascent)
-            lbl_y = CURVE_TOP_Y + inter_sb_20.ascent;
+        if (lbl_y < CURVE_TOP_Y + inter_b_14.ascent)
+            lbl_y = CURVE_TOP_Y + inter_b_14.ascent;
 
-        draw_str_c(buf, dot_x, lbl_y,  tl->label,    &inter_sb_20);
-        draw_str_c(buf, dot_x, time_y, tl->time_str, &inter_lt_16);
+        draw_str_c(buf, dot_x, lbl_y,  tl->label,    &inter_b_14);
+        draw_str_c(buf, dot_x, time_y, tl->time_str, &inter_b_14);
     }
 
     /* ------------------------------------------------------------------
@@ -613,53 +609,28 @@ static void render(uint8_t *buf)
     {
         int cx = PANEL_W / 2;   /* 120 */
 
-        /* Large tide height — this is the main visual fidelity target.
-         * "1 FT" and "3 IN" on consecutive lines with matching baselines
-         * so descenders don't overlap.                                   */
-        int base96 = PANEL_TOP + 20 + inter_sb_96.ascent;
-        int base56 = base96 + inter_sb_96.line_height - inter_sb_96.ascent
-                     + 6 + inter_sb_56.ascent;
-
-        /* "1 FT" — centre the whole compound string */
-        {
-            int w1  = inter_measure_string(&inter_sb_96, "1");
-            int gap = 8;
-            int wFT = inter_measure_string(&inter_sb_56, "FT");
-            int total_w = w1 + gap + wFT;
-            int left  = cx - total_w / 2;
-            /* "1" in 96px */
-            draw_str(buf, left, base96, "1", &inter_sb_96);
-            /* "FT" in 56px, baseline-aligned with "1" */
-            draw_str(buf, left + w1 + gap, base96, "FT", &inter_sb_56);
-        }
-
-        /* "3 IN" in 56px — centred */
-        {
-            int w3   = inter_measure_string(&inter_sb_56, "3");
-            int gap  = 8;
-            int wIN  = inter_measure_string(&inter_sb_56, "IN");
-            int total = w3 + gap + wIN;
-            int left  = cx - total / 2;
-            draw_str(buf, left, base56, "3", &inter_sb_56);
-            draw_str(buf, left + w3 + gap, base56, "IN", &inter_sb_56);
-        }
+        /* Large tide height — the primary fidelity target for 48px Light.
+         * "1 FT 3 IN" fits on one line (~178px measured, panel is 240px). */
+        int base48 = PANEL_TOP + 20 + inter_lt_48.ascent;
+        draw_str_c(buf, cx, base48, "1 FT 3 IN", &inter_lt_48);
 
         /* Rising-tide arrows (▲▲) — two small triangles side by side */
         {
-            int arrow_y = base56 + 16;
+            int arrow_y = base48 + inter_lt_48.line_height - inter_lt_48.ascent + 10;
             int arrow_h = 12;
-            draw_arrow_up(buf, cx - 8,  arrow_y, arrow_h, GRAY1);
-            draw_arrow_up(buf, cx + 8,  arrow_y, arrow_h, GRAY1);
+            draw_arrow_up(buf, cx - 8, arrow_y, arrow_h, GRAY1);
+            draw_arrow_up(buf, cx + 8, arrow_y, arrow_h, GRAY1);
         }
 
         /* Time string */
-        int time_y = base56 + 16 + 14 + inter_sb_28.ascent;
-        draw_str_c(buf, cx, time_y, "1:17 PM", &inter_sb_28);
+        int time_y = base48 + inter_lt_48.line_height - inter_lt_48.ascent
+                     + 30 + inter_b_14.ascent;
+        draw_str_c(buf, cx, time_y, "1:17 PM", &inter_b_14);
 
         /* Label */
-        int lbl_y = time_y + inter_sb_28.line_height - inter_sb_28.ascent
-                    + 4 + inter_lt_16.ascent;
-        draw_str_c(buf, cx, lbl_y, "HIGH TIDE", &inter_lt_16);
+        int lbl_y = time_y + inter_b_14.line_height - inter_b_14.ascent
+                    + 4 + inter_b_14.ascent;
+        draw_str_c(buf, cx, lbl_y, "HIGH TIDE", &inter_b_14);
     }
 
     /* ---- Panel 2 — Tide Cycle --------------------------------------- */
@@ -671,10 +642,15 @@ static void render(uint8_t *buf)
         int icon_x   = cx - (int)icon_tide_spring.Width  / 2;
         draw_icon(buf, &icon_tide_spring, icon_x, icon_top);
 
-        /* "SPRING TIDE" label below icon */
-        int lbl_y = icon_top + (int)icon_tide_spring.Height + 14
-                    + inter_lt_16.ascent;
-        draw_str_c(buf, cx, lbl_y, "SPRING TIDE", &inter_lt_16);
+        /* Large cycle letter "S" in inter_lt_48 — the spring tide size indicator */
+        int letter_y = icon_top + (int)icon_tide_spring.Height + 10
+                       + inter_lt_48.ascent;
+        draw_str_c(buf, cx, letter_y, "S", &inter_lt_48);
+
+        /* "SPRING TIDE" label below letter */
+        int lbl_y = letter_y + inter_lt_48.line_height - inter_lt_48.ascent
+                    + 6 + inter_b_14.ascent;
+        draw_str_c(buf, cx, lbl_y, "SPRING TIDE", &inter_b_14);
     }
 
     /* ---- Panel 3 — Sunrise / Sunset -------------------------------- */
@@ -682,7 +658,7 @@ static void render(uint8_t *buf)
         int cx = 2 * PANEL_W + PANEL_W / 2;   /* 600 */
 
         /* Layout: sunrise row, gap, sunset row, centred as a group */
-        int row_h = (int)icon_sunrise.Height + 6 + inter_sb_28.ascent;
+        int row_h = (int)icon_sunrise.Height + 6 + inter_b_14.ascent;
         int gap   = 16;
         int total_h = row_h * 2 + gap;
         int top_y   = mid_y - total_h / 2;
@@ -695,10 +671,10 @@ static void render(uint8_t *buf)
             int base    = top_y + (int)icon_sunrise.Height;  /* baseline ≈ bottom of icon */
 
             draw_icon(buf, &icon_sunrise, icon_x, icon_y);
-            draw_str(buf, text_x, base, "6:15 AM", &inter_sb_28);
+            draw_str(buf, text_x, base, "6:15 AM", &inter_b_14);
 
-            int sub_y = base + 4 + inter_lt_16.ascent;
-            draw_str_c(buf, cx, sub_y, "SUNRISE", &inter_lt_16);
+            int sub_y = base + 4 + inter_b_14.ascent;
+            draw_str_c(buf, cx, sub_y, "SUNRISE", &inter_b_14);
         }
 
         /* Sunset row — reuse icon_sunrise for visual fidelity (sunset icon
@@ -714,10 +690,10 @@ static void render(uint8_t *buf)
             /* Include icon_sunset.h at top of file if you want the correct
              * icon here — for now, icon_sunrise is a size stand-in.       */
             draw_icon(buf, &icon_sunrise, icon_x, icon_y);
-            draw_str(buf, text_x, base, "8:04 PM", &inter_sb_28);
+            draw_str(buf, text_x, base, "8:04 PM", &inter_b_14);
 
-            int sub_y = base + 4 + inter_lt_16.ascent;
-            draw_str_c(buf, cx, sub_y, "SUNSET", &inter_lt_16);
+            int sub_y = base + 4 + inter_b_14.ascent;
+            draw_str_c(buf, cx, sub_y, "SUNSET", &inter_b_14);
         }
     }
 
@@ -730,15 +706,14 @@ static void render(uint8_t *buf)
         int icon_x   = cx - (int)icon_moon_new.Width  / 2;
         draw_icon(buf, &icon_moon_new, icon_x, icon_top);
 
-        /* Moon age "0.0" in 56px */
+        /* Moon age "0.0" and phase name — both in inter_b_14 */
         int age_y = icon_top + (int)icon_moon_new.Height + 12
-                    + inter_sb_56.ascent;
-        draw_str_c(buf, cx, age_y, "0.0", &inter_sb_56);
+                    + inter_b_14.ascent;
+        draw_str_c(buf, cx, age_y, "0.0", &inter_b_14);
 
-        /* Phase name */
-        int lbl_y = age_y + inter_sb_56.line_height - inter_sb_56.ascent
-                    + 4 + inter_lt_16.ascent;
-        draw_str_c(buf, cx, lbl_y, "NEW", &inter_lt_16);
+        int lbl_y = age_y + inter_b_14.line_height - inter_b_14.ascent
+                    + 4 + inter_b_14.ascent;
+        draw_str_c(buf, cx, lbl_y, "NEW", &inter_b_14);
     }
 
     /* ------------------------------------------------------------------
