@@ -5,7 +5,7 @@
 
 # Which display is physically connected?
 # Options: "7in3" | "13in3"
-DISPLAY = "7in3"
+DISPLAY = "13in3"
 
 # Light or dark mode?
 # Options: "light" | "dark"
