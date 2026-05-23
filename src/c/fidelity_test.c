@@ -609,26 +609,43 @@ static void render(uint8_t *buf)
     {
         int cx = PANEL_W / 2;   /* 120 */
 
-        /* Large tide height — the primary fidelity target for 48px Light.
-         * "1 FT 3 IN" fits on one line (~178px measured, panel is 240px). */
-        int base48 = PANEL_TOP + 20 + inter_lt_48.ascent;
-        draw_str_c(buf, cx, base48, "1 FT 3 IN", &inter_lt_48);
-
-        /* Rising-tide arrows (▲▲) — two small triangles side by side */
+        /* Tide height — numbers in inter_lt_48, unit labels in inter_b_14.
+         * Two lines: "1 FT" then "3 IN", all baseline-aligned per line.  */
+        int base1 = PANEL_TOP + 10 + inter_lt_48.ascent;   /* line 1 baseline */
+        int base2 = base1 + inter_lt_48.line_height + 4;   /* line 2 baseline */
         {
-            int arrow_y = base48 + inter_lt_48.line_height - inter_lt_48.ascent + 10;
-            int arrow_h = 12;
-            draw_arrow_up(buf, cx - 8, arrow_y, arrow_h, GRAY1);
-            draw_arrow_up(buf, cx + 8, arrow_y, arrow_h, GRAY1);
+            /* Line 1: "1" (48px) + "FT" (14px) */
+            int w1  = inter_measure_string(&inter_lt_48, "1");
+            int wFT = inter_measure_string(&inter_b_14,  "FT");
+            int gap = 6;
+            int lx  = cx - (w1 + gap + wFT) / 2;
+            draw_str(buf, lx,           base1, "1",  &inter_lt_48);
+            draw_str(buf, lx + w1 + gap, base1, "FT", &inter_b_14);
+        }
+        {
+            /* Line 2: "3" (48px) + "IN" (14px) */
+            int w3  = inter_measure_string(&inter_lt_48, "3");
+            int wIN = inter_measure_string(&inter_b_14,  "IN");
+            int gap = 6;
+            int lx  = cx - (w3 + gap + wIN) / 2;
+            draw_str(buf, lx,           base2, "3",  &inter_lt_48);
+            draw_str(buf, lx + w3 + gap, base2, "IN", &inter_b_14);
         }
 
-        /* Time string */
-        int time_y = base48 + inter_lt_48.line_height - inter_lt_48.ascent
-                     + 30 + inter_b_14.ascent;
-        draw_str_c(buf, cx, time_y, "1:17 PM", &inter_b_14);
+        /* Rising-tide arrows (▲▲) */
+        {
+            int arrow_y = base2 + inter_lt_48.line_height - inter_lt_48.ascent + 8;
+            draw_arrow_up(buf, cx - 8, arrow_y, 10, GRAY1);
+            draw_arrow_up(buf, cx + 8, arrow_y, 10, GRAY1);
+        }
+
+        /* Time in inter_lt_48 */
+        int time_y = base2 + inter_lt_48.line_height - inter_lt_48.ascent
+                     + 24 + inter_lt_48.ascent;
+        draw_str_c(buf, cx, time_y, "1:17 PM", &inter_lt_48);
 
         /* Label */
-        int lbl_y = time_y + inter_b_14.line_height - inter_b_14.ascent
+        int lbl_y = time_y + inter_lt_48.line_height - inter_lt_48.ascent
                     + 4 + inter_b_14.ascent;
         draw_str_c(buf, cx, lbl_y, "HIGH TIDE", &inter_b_14);
     }
@@ -657,43 +674,39 @@ static void render(uint8_t *buf)
     {
         int cx = 2 * PANEL_W + PANEL_W / 2;   /* 600 */
 
-        /* Layout: sunrise row, gap, sunset row, centred as a group */
-        int row_h = (int)icon_sunrise.Height + 6 + inter_b_14.ascent;
-        int gap   = 16;
-        int total_h = row_h * 2 + gap;
-        int top_y   = mid_y - total_h / 2;
+        /* Each row stacks vertically: icon → 48px time → 14px label.
+         * 48px time is too tall to sit beside a 28px icon side-by-side. */
+        int icon_h  = (int)icon_sunrise.Height;   /* 28 px */
+        int row_h   = icon_h + 4                  /* icon + gap        */
+                      + inter_lt_48.line_height    /* time (48px)       */
+                      + 4 + inter_b_14.line_height;/* gap + label (14px)*/
+        int between = 12;
+        int top_y   = mid_y - (row_h * 2 + between) / 2;
 
         /* Sunrise row */
         {
-            int icon_x  = cx - (int)icon_sunrise.Width - 8;
-            int icon_y  = top_y;
-            int text_x  = cx + 8;
-            int base    = top_y + (int)icon_sunrise.Height;  /* baseline ≈ bottom of icon */
+            int icon_y   = top_y;
+            int time_base = icon_y + icon_h + 4 + inter_lt_48.ascent;
+            int lbl_base  = time_base + inter_lt_48.line_height - inter_lt_48.ascent
+                            + 4 + inter_b_14.ascent;
 
-            draw_icon(buf, &icon_sunrise, icon_x, icon_y);
-            draw_str(buf, text_x, base, "6:15 AM", &inter_b_14);
-
-            int sub_y = base + 4 + inter_b_14.ascent;
-            draw_str_c(buf, cx, sub_y, "SUNRISE", &inter_b_14);
+            draw_icon(buf, &icon_sunrise,
+                      cx - icon_h / 2, icon_y);    /* icon centred      */
+            draw_str_c(buf, cx, time_base, "6:15 AM", &inter_lt_48);
+            draw_str_c(buf, cx, lbl_base,  "SUNRISE", &inter_b_14);
         }
 
-        /* Sunset row — reuse icon_sunrise for visual fidelity (sunset icon
-         * is also available via icon_sunset.h; the fidelity test just
-         * needs to see a 28×28 icon at both positions). */
+        /* Sunset row (reuses icon_sunrise as a size stand-in for icon_sunset) */
         {
-            int sy      = top_y + row_h + gap;
-            int icon_x  = cx - (int)icon_sunrise.Width - 8;
-            int icon_y  = sy;
-            int text_x  = cx + 8;
-            int base    = sy + (int)icon_sunrise.Height;
+            int icon_y   = top_y + row_h + between;
+            int time_base = icon_y + icon_h + 4 + inter_lt_48.ascent;
+            int lbl_base  = time_base + inter_lt_48.line_height - inter_lt_48.ascent
+                            + 4 + inter_b_14.ascent;
 
-            /* Include icon_sunset.h at top of file if you want the correct
-             * icon here — for now, icon_sunrise is a size stand-in.       */
-            draw_icon(buf, &icon_sunrise, icon_x, icon_y);
-            draw_str(buf, text_x, base, "8:04 PM", &inter_b_14);
-
-            int sub_y = base + 4 + inter_b_14.ascent;
-            draw_str_c(buf, cx, sub_y, "SUNSET", &inter_b_14);
+            draw_icon(buf, &icon_sunrise,
+                      cx - icon_h / 2, icon_y);
+            draw_str_c(buf, cx, time_base, "8:04 PM", &inter_lt_48);
+            draw_str_c(buf, cx, lbl_base,  "SUNSET",  &inter_b_14);
         }
     }
 
@@ -706,12 +719,12 @@ static void render(uint8_t *buf)
         int icon_x   = cx - (int)icon_moon_new.Width  / 2;
         draw_icon(buf, &icon_moon_new, icon_x, icon_top);
 
-        /* Moon age "0.0" and phase name — both in inter_b_14 */
-        int age_y = icon_top + (int)icon_moon_new.Height + 12
-                    + inter_b_14.ascent;
-        draw_str_c(buf, cx, age_y, "0.0", &inter_b_14);
+        /* Moon age in inter_lt_48, phase name in inter_b_14 */
+        int age_y = icon_top + (int)icon_moon_new.Height + 8
+                    + inter_lt_48.ascent;
+        draw_str_c(buf, cx, age_y, "0.0", &inter_lt_48);
 
-        int lbl_y = age_y + inter_b_14.line_height - inter_b_14.ascent
+        int lbl_y = age_y + inter_lt_48.line_height - inter_lt_48.ascent
                     + 4 + inter_b_14.ascent;
         draw_str_c(buf, cx, lbl_y, "NEW", &inter_b_14);
     }
