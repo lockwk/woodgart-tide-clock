@@ -188,28 +188,41 @@ def fetch_tides(tz, now):
             }
 
         # Boundary tides for spline continuity across the full display width.
-        # prev_tide  = last tide before today (yesterday's final hi/lo).
-        # next_tide_after = first tide after today (tomorrow's first hi/lo).
-        # t_min is minutes from today's midnight: negative for yesterday,
-        # > 1440 for tomorrow.  The C renderer uses these as spline anchors.
-        before_today = [t for t in all_tides if t['_dt'].date() < today]
-        after_today  = [t for t in all_tides if t['_dt'].date() > today]
+        # Find the tide immediately BEFORE today's first and immediately AFTER
+        # today's last by chronological position in the full 3-day list.
+        # (Using date-based filtering gave the wrong tides when today's first/last
+        # tide falls very near midnight — e.g. a 12:13 AM tide is today's first,
+        # not tomorrow's, and a 10:45 PM tide is today's last, not yesterday's.)
+        #
+        # t_min = minutes from today's midnight; computed directly from the
+        # datetime delta so it's correct regardless of day boundary.
+        midnight_today = datetime(today.year, today.month, today.day,
+                                  0, 0, 0, tzinfo=tz)
 
-        prev_raw  = before_today[-1] if before_today else None
-        after_raw = after_today[0]   if after_today  else None
+        today_indices = [i for i, t in enumerate(all_tides)
+                         if t['_dt'].date() == today]
 
-        def _boundary_dict(raw, day_offset):
+        if today_indices:
+            prev_idx  = today_indices[0]  - 1
+            after_idx = today_indices[-1] + 1
+            prev_raw  = all_tides[prev_idx]  if prev_idx  >= 0               else None
+            after_raw = all_tides[after_idx] if after_idx < len(all_tides)   else None
+        else:
+            prev_raw = after_raw = None
+
+        def _boundary_dict(raw):
+            t_min = (raw['_dt'] - midnight_today).total_seconds() / 60.0
             return {
                 'time_str':  raw['time_str'],
                 'hour':      raw['hour'],
                 'minute':    raw['minute'],
                 'height_ft': raw['height_ft'],
                 'type':      raw['type'],
-                't_min':     float(raw['hour'] * 60 + raw['minute'] + day_offset * 1440),
+                't_min':     round(t_min, 1),
             }
 
-        prev_tide_out  = _boundary_dict(prev_raw,  -1) if prev_raw  else None
-        next_after_out = _boundary_dict(after_raw, +1) if after_raw else None
+        prev_tide_out  = _boundary_dict(prev_raw)  if prev_raw  else None
+        next_after_out = _boundary_dict(after_raw) if after_raw else None
 
         log.info('✓ Tides: %d today, prev → %s, next_after → %s',
                  len(tides_today), prev_tide_out, next_after_out)
