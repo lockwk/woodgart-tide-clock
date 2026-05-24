@@ -11,8 +11,8 @@ Usage:
     python3 tools/font_to_c.py
 
 Output files (src/c/fonts/):
-    inter_lt_48.c / .h   — Inter Light 48px   (large tide height number, spring tide letter)
-    inter_b_14.c  / .h   — Inter Bold  14px   (everything else: labels, times, status bar)
+    inter_lt_40.c / .h   — Inter Light 40px   (large numbers, times, letters in bottom tiles)
+    inter_b_14.c  / .h   — Inter Bold  14px   (everything else: labels, status bar, graph)
 """
 
 import os
@@ -59,31 +59,16 @@ CHARSET = (
 if VARIABLE_FONT:
     TTF = _VARIABLE
     FONTS = [
-        # Phase 5 — status bar
-        ("inter_sb_20", TTF, 20, 600, 20),   # SemiBold 20px — time, date
-        ("inter_lt_16", TTF, 16, 300, 16),   # Light    16px — weather labels / values
+        # Phase 5/6/7 — status bar + graph labels
+        ("inter_b_14",  TTF, 14, 700, 14),   # Bold   14px — labels, status bar, graph
 
-        # Phase 7 — tide graph labels
-        # (inter_sb_20 reused for tide peak labels)
-
-        # Phase 8 — bottom panels
-        ("inter_sb_96", TTF, 96, 600, 32),   # SemiBold 96px — next tide large number
-        ("inter_sb_56", TTF, 56, 600, 32),   # SemiBold 56px — next tide inches, moon age
-        ("inter_sb_28", TTF, 28, 600, 28),   # SemiBold 28px — next tide time, sun times
-
-        # Kept from previous phases
-        ("inter_lt_48", TTF, 48, 300, 32),   # Light    48px — (reserved)
-        ("inter_b_14",  TTF, 14, 700, 14),   # Bold     14px — (reserved)
+        # Phase 8 — bottom panel tiles
+        ("inter_lt_40", TTF, 40, 300, 32),   # Light  40px — numbers, times, letters in tiles
     ]
 else:
     FONTS = [
-        ("inter_sb_20", _SEMI_TTF, 20, None, None),
-        ("inter_lt_16", _LITE_TTF, 16, None, None),
-        ("inter_sb_96", _SEMI_TTF, 96, None, None),
-        ("inter_sb_56", _SEMI_TTF, 56, None, None),
-        ("inter_sb_28", _SEMI_TTF, 28, None, None),
-        ("inter_lt_48", _LITE_TTF, 48, None, None),
         ("inter_b_14",  _SEMI_TTF, 14, None, None),
+        ("inter_lt_40", _LITE_TTF, 40, None, None),
     ]
 
 
@@ -349,13 +334,12 @@ def main():
         total_bytes = len(bitmaps)
         # Diagnostic: expected pixel width of key strings (compare vs Figma W)
         adv_by_char = {g["char"]: g["adv_w"] / 64.0 for g in glyphs}
-        for ds in ["0123456789", "1 FT 3 IN"]:
+        for ds in ["0123456789", "1 FT 3 IN", "6:15 AM", "WAXING CRESCENT"]:
             w = sum(adv_by_char.get(c, 0) for c in ds)
             print(f"        ↳ \"{ds}\" ≈ {w:.1f}px")
         print(f"done  ({total_bytes:,} bytes of bitmap data, {len(glyphs)} glyphs)")
 
     print(f"\nAll fonts written to {OUT_DIR}/")
-    print("Next: cd src/c && gcc font_test.c inter_font.c fonts/inter_sb_96.c fonts/inter_lt_16.c -o font_test && ./font_test")
 
 
 if __name__ == "__main__":

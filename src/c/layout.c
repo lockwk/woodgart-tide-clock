@@ -24,13 +24,23 @@
 /* Phase 6/7: tide graph */
 #include "tide_curve.h"
 
-/* Phase 8: bottom panels (uncomment when implementing)
- * #include "fonts/inter_lt_48.h"
- * #include "fonts/inter_lt_16.h"
- * #include "fonts/inter_sb_28.h"
- * #include "fonts/inter_sb_56.h"
- * #include "fonts/inter_sb_96.h"
- */
+/* Phase 8: bottom panels */
+#include "fonts/inter_lt_40.h"
+#include "icons/icon_high_tide.h"
+#include "icons/icon_low_tide.h"
+#include "icons/icon_tide_spring.h"
+#include "icons/icon_tide_neap.h"
+#include "icons/icon_tide_half.h"
+#include "icons/icon_sunrise.h"
+#include "icons/icon_sunset.h"
+#include "icons/icon_moon_new.h"
+#include "icons/icon_moon_full.h"
+#include "icons/icon_moon_waxing_crescent.h"
+#include "icons/icon_moon_waxing_gibbous.h"
+#include "icons/icon_moon_first_quarter.h"
+#include "icons/icon_moon_waning_gibbous.h"
+#include "icons/icon_moon_last_quarter.h"
+#include "icons/icon_moon_waning_crescent.h"
 
 /* ==========================================================================
  * Low-level drawing primitives
@@ -530,6 +540,226 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
 
 void render_bottom_panels(uint8_t *buf, const ClockData *data)
 {
-    /* Phase 8 */
-    (void)buf; (void)data;
+    /*
+     * Four 240×260 tiles, left to right:
+     *   [0,239]   Tile 1 — Next Tide
+     *   [240,479] Tile 2 — Tide Cycle
+     *   [480,719] Tile 3 — Sunrise & Sunset
+     *   [720,959] Tile 4 — Moon Phase
+     *
+     * Top border (DIVIDER_Y2) already drawn by render_tide_graph.
+     * Vertical dividers drawn here at x=240, 480, 720.
+     *
+     * Font metrics used below:
+     *   inter_lt_40: ascent=39, line_height=49  (descent = 10)
+     *   inter_b_14:  ascent=14, line_height=18  (descent =  4)
+     */
+
+    const InterFont *f40 = &inter_lt_40;
+    const InterFont *f14 = &inter_b_14;
+
+    /* Tile center x-coordinates */
+    const int cx1 = 120;
+    const int cx2 = 360;
+    const int cx3 = 600;
+    const int cx4 = 840;
+
+    /* Vertical tile dividers */
+    draw_vline_full(buf, 240, GRAY1);
+    draw_vline_full(buf, 480, GRAY1);
+    draw_vline_full(buf, 720, GRAY1);
+
+    /* =========================================================
+     * Tile 1 — Next Tide
+     *
+     * Figma y offsets from PANEL_TOP (420):
+     *   46  — height row  "[X] FT  [Y] IN"  (or "[Y] IN" if feet=0)
+     *   123 — tide direction icon (42×18 or 43×18)
+     *   150 — next tide time string
+     *   150+descent+8 — "HIGH TIDE" / "LOW TIDE" sub-label
+     * ========================================================= */
+    {
+        int whole = data->next_tide_height_whole_ft;
+        int rem   = data->next_tide_height_rem_in;
+        char type = data->next_tide_type;   /* 'H' or 'L' */
+
+        /* ---- Height row ---- */
+        int height_baseline = PANEL_TOP + 46 + f40->ascent;  /* y=505 */
+
+        if (whole != 0) {
+            char num1_buf[16], num2_buf[16];
+            snprintf(num1_buf, sizeof(num1_buf), "%d", abs(whole));
+            snprintf(num2_buf, sizeof(num2_buf), "%d", rem);
+
+            int w_neg  = (whole < 0) ? inter_measure_string(f40, "-") : 0;
+            int w_num1 = inter_measure_string(f40, num1_buf);
+            int w_ft   = inter_measure_string_tracked(f14, "FT", STATUS_TRACKING);
+            int w_num2 = inter_measure_string(f40, num2_buf);
+            int w_in   = inter_measure_string_tracked(f14, "IN", STATUS_TRACKING);
+
+            /* Figma gaps: 11px (number→FT), 16px (FT-group→IN-group), 8px (number→IN) */
+            int total_w = w_neg + w_num1 + 11 + w_ft + 16 + w_num2 + 8 + w_in;
+            int x = cx1 - total_w / 2;
+
+            if (whole < 0) {
+                draw_str(buf, x, height_baseline, "-", f40);
+                x += w_neg;
+            }
+            draw_str(buf, x, height_baseline, num1_buf, f40);   x += w_num1 + 11;
+            draw_str_t(buf, x, height_baseline, "FT", f14, STATUS_TRACKING);
+            x += w_ft + 16;
+            draw_str(buf, x, height_baseline, num2_buf, f40);   x += w_num2 + 8;
+            draw_str_t(buf, x, height_baseline, "IN", f14, STATUS_TRACKING);
+        } else {
+            /* feet=0: show "[Y] IN" only */
+            char rem_buf[16];
+            snprintf(rem_buf, sizeof(rem_buf), "%d", rem);
+            int w_num = inter_measure_string(f40, rem_buf);
+            int w_in  = inter_measure_string_tracked(f14, "IN", STATUS_TRACKING);
+            int total_w = w_num + 8 + w_in;
+            int x = cx1 - total_w / 2;
+            draw_str(buf, x, height_baseline, rem_buf, f40);
+            x += w_num + 8;
+            draw_str_t(buf, x, height_baseline, "IN", f14, STATUS_TRACKING);
+        }
+
+        /* ---- Tide direction icon ---- */
+        int icon_y = PANEL_TOP + 123;   /* y=543 */
+        if (type == 'H') {
+            draw_icon(buf, &icon_high_tide, cx1 - (int)icon_high_tide.Width / 2, icon_y);
+        } else {
+            draw_icon(buf, &icon_low_tide,  cx1 - (int)icon_low_tide.Width  / 2, icon_y);
+        }
+
+        /* ---- Time string ---- */
+        int time_baseline = PANEL_TOP + 150 + f40->ascent;  /* y=609 */
+        draw_str_c(buf, cx1, time_baseline, data->next_tide_time_str, f40);
+
+        /* ---- Sub-label ("HIGH TIDE" / "LOW TIDE") ---- */
+        int lbl_baseline = time_baseline + (f40->line_height - f40->ascent) + 8 + f14->ascent;
+        const char *tide_lbl = (type == 'H') ? "HIGH TIDE" : "LOW TIDE";
+        draw_str_tc(buf, cx1, lbl_baseline, tide_lbl, f14, STATUS_TRACKING);
+    }
+
+    /* =========================================================
+     * Tile 2 — Tide Cycle
+     *
+     * tide_cycle maps to:   SPRING→L, HALF→M, NEAP→S
+     *
+     * Figma y offsets from PANEL_TOP:
+     *   78  — tide cycle icon (~92×92)
+     *   148 — cycle size letter (L / M / S)
+     *   148+descent+8 — cycle name label
+     * ========================================================= */
+    {
+        const sICON *cycle_icon;
+        const char  *cycle_letter;
+        const char  *cycle_label;
+
+        if (strncmp(data->tide_cycle, "NEAP", 4) == 0) {
+            cycle_icon   = &icon_tide_neap;
+            cycle_letter = "S";
+            cycle_label  = "NEAP TIDE";
+        } else if (strncmp(data->tide_cycle, "HALF", 4) == 0) {
+            cycle_icon   = &icon_tide_half;
+            cycle_letter = "M";
+            cycle_label  = "HALF TIDE";
+        } else {
+            /* Default: SPRING */
+            cycle_icon   = &icon_tide_spring;
+            cycle_letter = "L";
+            cycle_label  = "SPRING TIDE";
+        }
+
+        draw_icon(buf, cycle_icon,
+                  cx2 - (int)cycle_icon->Width / 2,
+                  PANEL_TOP + 78);   /* y=498 */
+
+        int letter_baseline = PANEL_TOP + 148 + f40->ascent;  /* y=607 */
+        draw_str_c(buf, cx2, letter_baseline, cycle_letter, f40);
+
+        int lbl_baseline = letter_baseline + (f40->line_height - f40->ascent) + 8 + f14->ascent;
+        draw_str_tc(buf, cx2, lbl_baseline, cycle_label, f14, STATUS_TRACKING);
+    }
+
+    /* =========================================================
+     * Tile 3 — Sunrise & Sunset
+     *
+     * Two groups centered vertically in the tile (32px top/bottom
+     * padding, 40px gap between groups).  Each group:
+     *   row:   [16×16 icon] [8px] [time string]  — all baseline-aligned
+     *   label: 8px below row, centered
+     * ========================================================= */
+    {
+        int row_h   = f40->line_height;   /* 49 */
+        int lbl_h   = f14->line_height;   /* 18 */
+        int group_h = row_h + 8 + lbl_h; /* 75 */
+        int total_h = 2 * group_h + 40;  /* 190 */
+        int avail   = PANEL_H - 64;      /* 196 */
+        int y0      = PANEL_TOP + 32 + (avail - total_h) / 2;  /* y≈453 */
+
+        const char  *times[2]  = { data->sunrise_str,  data->sunset_str  };
+        const char  *labels[2] = { "SUNRISE",          "SUNSET"          };
+        const sICON *icons[2]  = { &icon_sunrise,      &icon_sunset      };
+
+        for (int i = 0; i < 2; i++) {
+            int y_row = y0 + i * (group_h + 40);
+
+            /* [icon][8px][time] row centered at cx3 */
+            int icon_w  = (int)icons[i]->Width;   /* 16 */
+            int icon_h  = (int)icons[i]->Height;  /* 16 */
+            int time_w  = inter_measure_string(f40, times[i]);
+            int row_w   = icon_w + 8 + time_w;
+            int row_x   = cx3 - row_w / 2;
+
+            /* Icon: vertically centered in the 40px text row */
+            draw_icon(buf, icons[i], row_x, y_row + (row_h - icon_h) / 2);
+
+            /* Time string */
+            int time_baseline = y_row + f40->ascent;
+            draw_str(buf, row_x + icon_w + 8, time_baseline, times[i], f40);
+
+            /* Label */
+            int lbl_baseline = y_row + row_h + 8 + f14->ascent;
+            draw_str_tc(buf, cx3, lbl_baseline, labels[i], f14, STATUS_TRACKING);
+        }
+    }
+
+    /* =========================================================
+     * Tile 4 — Moon Phase
+     *
+     * Figma y offsets from PANEL_TOP:
+     *   75  — moon phase icon (88×88)
+     *   148 — moon age float ("0.0" … "29.5")
+     *   148+descent+8 — phase name ("NEW", "WAXING CRESCENT", …)
+     * ========================================================= */
+    {
+        /* Select icon from moon_phase string */
+        const sICON *moon_icon = &icon_moon_new;  /* fallback */
+        if      (strcmp(data->moon_phase, "FULL")            == 0) moon_icon = &icon_moon_full;
+        else if (strcmp(data->moon_phase, "WAXING_CRESCENT") == 0) moon_icon = &icon_moon_waxing_crescent;
+        else if (strcmp(data->moon_phase, "WAXING_GIBBOUS")  == 0) moon_icon = &icon_moon_waxing_gibbous;
+        else if (strcmp(data->moon_phase, "FIRST_QUARTER")   == 0) moon_icon = &icon_moon_first_quarter;
+        else if (strcmp(data->moon_phase, "WANING_GIBBOUS")  == 0) moon_icon = &icon_moon_waning_gibbous;
+        else if (strcmp(data->moon_phase, "LAST_QUARTER")    == 0) moon_icon = &icon_moon_last_quarter;
+        else if (strcmp(data->moon_phase, "WANING_CRESCENT") == 0) moon_icon = &icon_moon_waning_crescent;
+
+        draw_icon(buf, moon_icon,
+                  cx4 - (int)moon_icon->Width / 2,
+                  PANEL_TOP + 75);   /* y=495 */
+
+        /* Moon age */
+        char age_buf[8];
+        snprintf(age_buf, sizeof(age_buf), "%.1f", (double)data->moon_age);
+        int age_baseline = PANEL_TOP + 148 + f40->ascent;  /* y=607 */
+        draw_str_c(buf, cx4, age_baseline, age_buf, f40);
+
+        /* Phase label: underscores → spaces */
+        char phase_label[32];
+        snprintf(phase_label, sizeof(phase_label), "%s", data->moon_phase);
+        for (char *p = phase_label; *p; p++)
+            if (*p == '_') *p = ' ';
+        int lbl_baseline = age_baseline + (f40->line_height - f40->ascent) + 8 + f14->ascent;
+        draw_str_tc(buf, cx4, lbl_baseline, phase_label, f14, STATUS_TRACKING);
+    }
 }

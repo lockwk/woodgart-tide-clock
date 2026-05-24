@@ -38,7 +38,7 @@ PROJ_SRCS := tide_clock.c \
              tide_curve.c \
              inter_font.c \
              fonts/inter_b_14.c \
-             fonts/inter_lt_48.c
+             fonts/inter_lt_40.c
 
 TARGET := epd
 
@@ -60,7 +60,7 @@ $(TARGET): $(PROJ_SRCS) $(WS_SRCS)
 # Phase 3.5 visual fidelity test (standalone -- no json_reader or layout)
 FIDELITY_SRCS := fidelity_test.c \
                  inter_font.c \
-                 fonts/inter_lt_48.c \
+                 fonts/inter_lt_40.c \
                  fonts/inter_b_14.c \
                  $(WS_SRCS)
 
