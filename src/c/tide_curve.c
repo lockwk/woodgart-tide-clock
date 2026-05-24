@@ -19,6 +19,9 @@
 #include "tide_curve.h"
 #include "layout.h"   /* draw_line2, GRAY1, CURVE_TOP_Y, CURVE_BOT_Y */
 
+/* Maximum control points: today's tides + optional prev + optional next */
+#define SPLINE_MAX_N  (MAX_TIDES + 3)
+
 /* --------------------------------------------------------------------------
  * compute_spline — Hermite cubic spline with zero slopes at all control
  * points.
