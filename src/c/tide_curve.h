@@ -1,9 +1,10 @@
 /*
- * tide_curve.h — Natural cubic spline and tide graph renderer.
+ * tide_curve.h — Hermite cubic spline and tide graph renderer.
  *
- * Phase 7 implements the full rendering.  For Phase 4 the functions are
- * declared here so tide_clock.c can call them; tide_curve.c supplies
- * empty stubs that compile and link without errors.
+ * compute_spline uses a Hermite cubic with zero slopes at all control
+ * points.  Because every tide data point is an extremum, slope = 0 is
+ * physically correct and guarantees the spline peak coincides exactly
+ * with the reported tide time.
  */
 
 #ifndef TIDE_CURVE_H
@@ -11,15 +12,16 @@
 
 #include <stdint.h>
 
-/* One segment of a natural cubic spline: S_i(t) = a + b*dt + c*dt^2 + d*dt^3
- * where dt = t - t0. */
+/* One segment of the Hermite cubic spline: S_i(t) = a + b*dt + c*dt^2 + d*dt^3
+ * where dt = t - t0.  b is always 0 (zero slope at each tide extremum). */
 typedef struct {
     float a, b, c, d;
     float t0;   /* time (minutes since midnight) at the start of this segment */
 } SplineSeg;
 
 /*
- * compute_spline -- compute natural cubic spline through n control points.
+ * compute_spline -- compute Hermite cubic spline through n control points,
+ * with zero slope prescribed at every point.
  *
  *   pts_t  -- monotonically increasing time values (minutes since midnight)
  *   pts_h  -- tide heights (feet) at each control point
