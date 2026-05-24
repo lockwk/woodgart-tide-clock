@@ -32,8 +32,8 @@
  * memset(buf, 0xFF, DISP_BUFSIZE) -> all white (four 0x03 pixels/byte).
  */
 #define GRAY1  0x00   /* #000000 - black  : text, curve, dividers        */
-#define GRAY2  0x01   /* #555555 - dark   : night fill, current-hour bar */
-#define GRAY3  0x02   /* #AAAAAA - light  : (reserved / anti-alias)      */
+#define GRAY2  0x01   /* #555555 - dark   : (reserved)                   */
+#define GRAY3  0x02   /* #AAAAAA - light  : hour dividers                 */
 #define GRAY4  0x03   /* #FFFFFF - white  : background                   */
 
 /*
@@ -55,12 +55,16 @@
 #define PANEL_W       240   /* each of the four equal bottom panels */
 #define PANEL_H       260
 
-/* Tide curve drawing bounds within the graph area.
- * Labels (70 px tall) sit above each peak circle — CURVE_TOP_Y must leave
- * enough room above for the topmost label to stay inside the graph area.
- * CURVE_BOT_Y leaves a small gap above the panel divider for the hour label. */
-#define CURVE_TOP_Y   150   /* y of the highest tide circle center */
-#define CURVE_BOT_Y   400   /* y of the lowest tide circle center  */
+/* Tide curve safe-zone Y bounds — fixed scale, independent of daily tide range.
+ *
+ *   CURVE_TOP_Y (150) →  6.0 ft    (top extreme)
+ *   CURVE_BOT_Y (374) → -2.0 ft    (bottom extreme)
+ *   y = 318 − height_ft × 28       (28 px/ft, 0 ft anchor at y = 318)
+ *
+ * The filled polygon and dividers are NOT constrained here; they draw to
+ * GRAPH_BOT (419).  Only the spline curve itself is clamped to this zone. */
+#define CURVE_TOP_Y   150   /* y for +6.0 ft tide */
+#define CURVE_BOT_Y   374   /* y for -2.0 ft tide */
 
 /* ==========================================================================
  * Low-level drawing primitives (implemented in layout.c)

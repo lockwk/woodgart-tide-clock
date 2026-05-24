@@ -2,14 +2,15 @@
  * tide_clock.c -- 13.3" e-paper tide clock, main program.
  *
  * Pipeline:
- *   1. Read /tmp/tide_data.json (written by src/fetch/fetcher_13in3.py)
- *   2. Parse into ClockData
- *   3. Print all fields to stdout (diagnostic)
- *   4. Initialise the display
- *   5. Allocate 4-gray frame buffer; clear to white
- *   6. Call render stubs (filled in Phases 5-8)
- *   7. Push frame buffer to display
- *   8. Sleep display; clean exit
+ *   1. Initialise the display (once).
+ *   2. Run the Python fetcher, read /tmp/tide_data.json, render, push.
+ *   3. Sleep until the next H:00:05 trigger.
+ *   4. If the current hour is within REFRESH_HOUR_MIN..REFRESH_HOUR_MAX,
+ *      repeat from step 2.  Otherwise skip and sleep again.
+ *   5. On SIGINT / SIGTERM: sleep the display and exit cleanly.
+ *
+ * Refresh window: 5:00:05 AM through 9:00:05 PM (hours 5–21 inclusive).
+ * On startup the fetcher always runs immediately regardless of the time.
  *
  * -----------------------------------------------------------------------
  * Build (on the Pi, from ~/tide-clock-dev/src/c/):
@@ -36,14 +37,26 @@
 #include "layout.h"
 #include "tide_curve.h"
 
-/* Font sizes used by the renderer (included here so the translation
- * unit pulls in the bitmap data; individual render functions in layout.c
- * also include what they need). */
+/* Font sizes used by the renderer */
 #include "fonts/inter_lt_48.h"
 #include "fonts/inter_b_14.h"
 
 /* ==========================================================================
- * Signal handler -- sleep display on Ctrl+C or SIGTERM
+ * Configuration
+ * ======================================================================= */
+
+/* Shell command that writes /tmp/tide_data.json */
+#define FETCHER_CMD \
+    "python3 /home/pi/tide-clock-dev/src/fetch/fetcher_13in3.py"
+
+#define JSON_PATH  "/tmp/tide_data.json"
+
+/* Hourly refresh fires at H:00:05 for hours in [REFRESH_HOUR_MIN, REFRESH_HOUR_MAX] */
+#define REFRESH_HOUR_MIN  5   /*  5 AM */
+#define REFRESH_HOUR_MAX  21  /*  9 PM */
+
+/* ==========================================================================
+ * Signal handler
  * ======================================================================= */
 
 static volatile int g_exit = 0;
@@ -52,6 +65,90 @@ static void handler(int sig)
 {
     (void)sig;
     g_exit = 1;
+}
+
+/* ==========================================================================
+ * Helpers
+ * ======================================================================= */
+
+/*
+ * sleep_interruptible -- sleep for `seconds` seconds in 200 ms chunks,
+ * returning early if g_exit is set.
+ */
+static void sleep_interruptible(int seconds)
+{
+    for (int s = 0; s < seconds && !g_exit; s++) {
+        /* 5 × 200 ms = 1 s, checking g_exit between each chunk */
+        for (int ms = 0; ms < 5 && !g_exit; ms++)
+            DEV_Delay_ms(200);
+    }
+}
+
+/*
+ * secs_to_next_trigger -- seconds from now until the next H:00:05 mark.
+ *
+ * If we are already in the first 5 seconds of the current hour (e.g. just
+ * crossed the hour boundary), we wait to :05 of this hour.  Otherwise we
+ * wait to :05 of the next hour.
+ */
+static int secs_to_next_trigger(void)
+{
+    time_t     now        = time(NULL);
+    struct tm *lt         = localtime(&now);
+    int        secs_in_hr = lt->tm_min * 60 + lt->tm_sec;
+
+    if (secs_in_hr < 5)
+        return 5 - secs_in_hr;          /* wait to :05 of current hour */
+
+    return 3600 - secs_in_hr + 5;       /* wait to :05 of next hour    */
+}
+
+/*
+ * load_data -- read JSON_PATH, parse it into *data, then overwrite the
+ * time fields with the live system clock.
+ *
+ * Returns 1 on success, 0 on failure.
+ */
+static int load_data(ClockData *data)
+{
+    char *json = read_file(JSON_PATH);
+    if (!json) {
+        fprintf(stderr, "ERROR: could not read '%s'\n"
+                        "       Run fetcher first.\n", JSON_PATH);
+        return 0;
+    }
+    if (!parse_clock_data(json, data)) {
+        fprintf(stderr, "ERROR: failed to parse JSON from '%s'\n", JSON_PATH);
+        free(json);
+        return 0;
+    }
+    free(json);
+
+    /* Overwrite time fields with the live system clock so the displayed
+     * time always reflects when the renderer actually runs, not when the
+     * fetcher last wrote the file.                                       */
+    {
+        time_t     now    = time(NULL);
+        struct tm *lt     = localtime(&now);
+        int        hour24 = lt->tm_hour;
+        int        min    = lt->tm_min;
+        int        h12    = hour24 % 12;
+        if (h12 == 0) h12 = 12;
+        const char *ampm  = (hour24 >= 12) ? "PM" : "AM";
+
+        snprintf(data->current_time_str, sizeof(data->current_time_str),
+                 "%d:%02d %s", h12, min, ampm);
+        strftime(data->current_date_str, sizeof(data->current_date_str),
+                 "%a %b %d %Y", lt);
+        /* strftime gives mixed case; upcase to match design */
+        for (char *p = data->current_date_str; *p; p++)
+            if (*p >= 'a' && *p <= 'z') *p -= 32;
+
+        data->current_hour   = hour24;
+        data->current_minute = min;
+    }
+
+    return 1;
 }
 
 /* ==========================================================================
@@ -64,59 +161,7 @@ int main(void)
     signal(SIGTERM, handler);
 
     /* ------------------------------------------------------------------
-     * 1. Read and parse JSON
-     * ---------------------------------------------------------------- */
-    const char *json_path = "/tmp/tide_data.json";
-
-    printf("tide_clock: reading %s ...\n", json_path);
-    char *json = read_file(json_path);
-    if (!json) {
-        fprintf(stderr, "ERROR: could not read '%s'\n"
-                        "       Run fetcher_13in3.py first.\n", json_path);
-        return 1;
-    }
-
-    ClockData data;
-    if (!parse_clock_data(json, &data)) {
-        fprintf(stderr, "ERROR: failed to parse JSON from '%s'\n", json_path);
-        free(json);
-        return 1;
-    }
-    free(json);
-
-    /* ------------------------------------------------------------------
-     * 1b. Overwrite time fields with the live system clock.
-     *     Tide/weather data is legitimately cached, but the displayed
-     *     time must always reflect when the renderer actually runs.
-     * ---------------------------------------------------------------- */
-    {
-        time_t     now    = time(NULL);
-        struct tm *lt     = localtime(&now);
-        int        hour24 = lt->tm_hour;
-        int        min    = lt->tm_min;
-        int        h12    = hour24 % 12;
-        if (h12 == 0) h12 = 12;
-        const char *ampm  = (hour24 >= 12) ? "PM" : "AM";
-
-        snprintf(data.current_time_str, sizeof(data.current_time_str),
-                 "%d:%02d %s", h12, min, ampm);
-        strftime(data.current_date_str, sizeof(data.current_date_str),
-                 "%a %b %d %Y", lt);
-        /* strftime gives mixed case; upcase it to match the design */
-        for (char *p = data.current_date_str; *p; p++)
-            if (*p >= 'a' && *p <= 'z') *p -= 32;
-
-        data.current_hour   = hour24;
-        data.current_minute = min;
-    }
-
-    /* ------------------------------------------------------------------
-     * 2. Print parsed data to stdout (diagnostic -- Phase 4 deliverable)
-     * ---------------------------------------------------------------- */
-    print_clock_data(&data);
-
-    /* ------------------------------------------------------------------
-     * 3. Initialise display
+     * Initialise display (once at startup).
      * ---------------------------------------------------------------- */
     printf("tide_clock: initialising display...\n");
     if (DEV_Module_Init() != 0) {
@@ -124,16 +169,14 @@ int main(void)
         return 1;
     }
 
-    /* Full init + clear required before switching to 4-gray mode */
+    /* Full B/W init + clear before switching to 4-gray mode */
     EPD_13IN3K_Init();
     EPD_13IN3K_Clear();
     DEV_Delay_ms(500);
-
-    /* Switch to 4-gray mode */
     EPD_13IN3K_Init_4GRAY();
 
     /* ------------------------------------------------------------------
-     * 4. Allocate frame buffer and clear to white
+     * Allocate frame buffer (cleared to white = 0xFF per byte).
      * ---------------------------------------------------------------- */
     uint8_t *buf = (uint8_t *)malloc(DISP_BUFSIZE);
     if (!buf) {
@@ -142,31 +185,67 @@ int main(void)
         return 1;
     }
 
-    /* memset 0xFF -> four 0x03 (white) pixels per byte */
-    memset(buf, 0xFF, DISP_BUFSIZE);
-
     /* ------------------------------------------------------------------
-     * 5. Render (stubs for Phase 4 -- filled in Phases 5-8)
+     * Fetch-render-display loop.
+     *
+     * first_run = 1: always fetch + render immediately on startup.
+     * first_run = 0: sleep to the next :05 trigger, then check the
+     *                refresh window before fetching.
      * ---------------------------------------------------------------- */
-    printf("tide_clock: rendering...\n");
-    render_status_bar   (buf, &data);
-    render_tide_graph   (buf, &data);
-    render_bottom_panels(buf, &data);
+    int first_run = 1;
+
+    while (!g_exit) {
+
+        if (!first_run) {
+            /* Sleep until the next H:00:05 mark */
+            int wait = secs_to_next_trigger();
+            printf("tide_clock: sleeping %d s to next trigger...\n", wait);
+            sleep_interruptible(wait);
+            if (g_exit) break;
+
+            /* Skip render outside the active refresh window */
+            time_t     now  = time(NULL);
+            struct tm *lt   = localtime(&now);
+            int        hour = lt->tm_hour;
+            if (hour < REFRESH_HOUR_MIN || hour > REFRESH_HOUR_MAX) {
+                printf("tide_clock: outside refresh window (hour %02d), "
+                       "skipping.\n", hour);
+                continue;
+            }
+        }
+
+        first_run = 0;
+
+        /* ---- Run fetcher ------------------------------------------ */
+        printf("tide_clock: running fetcher...\n");
+        int fetch_ret = system(FETCHER_CMD);
+        if (fetch_ret != 0)
+            fprintf(stderr, "WARNING: fetcher exited with status %d\n",
+                    fetch_ret);
+
+        /* ---- Load and parse JSON ---------------------------------- */
+        ClockData data;
+        if (!load_data(&data)) {
+            fprintf(stderr, "ERROR: skipping render this cycle\n");
+            continue;
+        }
+        print_clock_data(&data);
+
+        /* ---- Render into frame buffer ----------------------------- */
+        memset(buf, 0xFF, DISP_BUFSIZE);   /* clear to white */
+        render_status_bar   (buf, &data);
+        render_tide_graph   (buf, &data);
+        render_bottom_panels(buf, &data);
+
+        /* ---- Push to display -------------------------------------- */
+        printf("tide_clock: pushing to display...\n");
+        EPD_13IN3K_Init_4GRAY();           /* re-init before each 4-gray push */
+        EPD_13IN3K_4GrayDisplay(buf);
+        printf("tide_clock: display updated.\n");
+    }
 
     /* ------------------------------------------------------------------
-     * 6. Push frame buffer to display
-     * ---------------------------------------------------------------- */
-    printf("tide_clock: pushing to display...\n");
-    EPD_13IN3K_4GrayDisplay(buf);
-
-    printf("tide_clock: done.  Press Ctrl+C to sleep display and exit.\n");
-
-    /* Hold until signalled */
-    while (!g_exit)
-        DEV_Delay_ms(200);
-
-    /* ------------------------------------------------------------------
-     * 7. Sleep display and clean up
+     * Clean shutdown: sleep display and release resources.
      * ---------------------------------------------------------------- */
     printf("\ntide_clock: sleeping display...\n");
     EPD_13IN3K_Init();

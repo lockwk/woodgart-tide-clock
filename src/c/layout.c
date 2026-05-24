@@ -272,12 +272,16 @@ void render_status_bar(uint8_t *buf, const ClockData *data)
  *
  * graph_t_to_x: minutes-since-midnight → pixel column (0..DISP_W-1)
  * graph_h_to_y: tide height (feet) → pixel row (clamped to CURVE_TOP/BOT_Y)
+ *
+ * Fixed Y scale: y = CURVE_BOT_Y − (h − h_min) × (CURVE_BOT_Y − CURVE_TOP_Y) / h_range
+ *   h_min = −2.0 ft, h_max = 6.0 ft, h_range = 8.0 ft
+ *   → 28 px/ft, 0 ft anchor at y = 318
  * ---------------------------------------------------------------------- */
 
 static int graph_t_to_x(float t, float t_start, float t_range)
 {
     float x = (t - t_start) * (float)(DISP_W - 1) / t_range;
-    if (x < 0.0f)              x = 0.0f;
+    if (x < 0.0f)                x = 0.0f;
     if (x > (float)(DISP_W - 1)) x = (float)(DISP_W - 1);
     return (int)(x + 0.5f);
 }
@@ -303,42 +307,36 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
         return;
 
     /* ----------------------------------------------------------------
-     * 1.  Time axis: (sunrise – 1 hr) to (sunset + 1 hr).
+     * 1.  Time axis: column-based, floor(sunrise_hour) to floor(sunset_hour)
+     *     inclusive.  Each of the num_hours columns is col_width_f px wide.
+     *     t_start/t_end map to pixel 0 / pixel DISP_W-1 for the spline.
      * ------------------------------------------------------------ */
-    float t_start = (float)(data->sunrise_hour * 60 + data->sunrise_minute)
-                    - 60.0f;
-    float t_end   = (float)(data->sunset_hour  * 60 + data->sunset_minute)
-                    + 60.0f;
-    if (t_start < 0.0f)    t_start = 0.0f;
-    if (t_end   > 1440.0f) t_end   = 1440.0f;
+    int start_hour  = data->sunrise_hour;
+    int end_hour    = data->sunset_hour;
+    int num_hours   = end_hour - start_hour + 1;
+    if (num_hours < 1) return;
 
-    float t_range = t_end - t_start;
-    if (t_range < 1.0f) return;   /* degenerate: sunrise/sunset missing */
+    float col_width_f = (float)DISP_W / (float)num_hours;
+    float t_start     = (float)(start_hour * 60);
+    float t_end       = (float)((start_hour + num_hours) * 60);
+    float t_range     = t_end - t_start;   /* = num_hours × 60.0 */
 
     /* ----------------------------------------------------------------
-     * 2.  Height axis: range of today's tide events + 0.5 ft margins.
+     * 2.  Height axis: fixed scale, independent of daily tide range.
+     *       -2.0 ft → CURVE_BOT_Y (374)
+     *        6.0 ft → CURVE_TOP_Y (150)
+     *       28 px/ft, 0 ft anchor at y = 318
      * ------------------------------------------------------------ */
-    float h_min = data->tides[0].height_ft;
-    float h_max = data->tides[0].height_ft;
-    for (int i = 1; i < data->n_tides; i++) {
-        float h = data->tides[i].height_ft;
-        if (h < h_min) h_min = h;
-        if (h > h_max) h_max = h;
-    }
-    h_min -= 0.5f;
-    h_max += 0.5f;
-    float h_range = h_max - h_min;
-    if (h_range < 0.1f) return;   /* degenerate: all tides the same height */
+    float h_min   = -2.0f;
+    float h_max   =  6.0f;
+    float h_range =  8.0f;
 
     /* ----------------------------------------------------------------
      * 3.  Control point arrays for the spline.
      *
-     *     Prepend yesterday's last tide (prev_tide) and append
-     *     tomorrow's first tide (next_tide_after) when available.
-     *     Their t_min values are in minutes from today's midnight:
-     *     negative for yesterday, > 1440 for tomorrow.  This anchors
-     *     the spline with real data on both sides so the curve is
-     *     accurate across the full display width.
+     *     Prepend yesterday's last tide and append tomorrow's first
+     *     tide when available.  t values are minutes from today's
+     *     midnight (negative for yesterday, > 1440 for tomorrow).
      * ------------------------------------------------------------ */
     float tide_t[MAX_TIDES + 2], tide_h[MAX_TIDES + 2];
     int n_pts = 0;
@@ -364,29 +362,21 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
     int n_segs = n_pts - 1;
 
     /* ----------------------------------------------------------------
-     * 4.  Pixel positions for sunrise, sunset, and current time.
+     * 4.  Current-hour bar coordinates (full column width).
+     *     Clamped to valid column range so an out-of-window current
+     *     hour doesn't crash (e.g. on startup before 5 AM).
      * ------------------------------------------------------------ */
-    float t_sunrise = (float)(data->sunrise_hour * 60 + data->sunrise_minute);
-    float t_sunset  = (float)(data->sunset_hour  * 60 + data->sunset_minute);
-    float t_cur     = (float)(data->current_hour * 60 + data->current_minute);
+    int current_col = data->current_hour - start_hour;
+    if (current_col < 0)          current_col = 0;
+    if (current_col >= num_hours)  current_col = num_hours - 1;
 
-    int x_sunrise = graph_t_to_x(t_sunrise, t_start, t_range);
-    int x_sunset  = graph_t_to_x(t_sunset,  t_start, t_range);
-
-    /* Bar spans ±30 min around current time (= 1 hour wide) */
-    int x_bar_left  = graph_t_to_x(t_cur - 30.0f, t_start, t_range);
-    int x_bar_right = graph_t_to_x(t_cur + 30.0f, t_start, t_range);
+    int x_bar_left  = (int)(current_col       * col_width_f + 0.5f);
+    int x_bar_right = (int)((current_col + 1) * col_width_f + 0.5f) - 1;
     int bar_cx      = (x_bar_left + x_bar_right) / 2;
 
     /* ----------------------------------------------------------------
-     * 5.  Phase 6: Night fills (GRAY2) — before sunrise and after sunset.
-     * ------------------------------------------------------------ */
-    fill_rect(buf,  0,        GRAPH_TOP, x_sunrise,   GRAPH_BOT, GRAY3);
-    fill_rect(buf,  x_sunset, GRAPH_TOP, DISP_W - 1,  GRAPH_BOT, GRAY3);
-
-    /* ----------------------------------------------------------------
-     * 6.  Phase 6: Current-hour bar (GRAY1) — top edge follows spline.
-     *     Column by column: fill from the spline height down to GRAPH_BOT.
+     * 5.  Current-hour bar (GRAY1) — top edge follows the spline,
+     *     bottom extends to GRAPH_BOT.  Drawn column by column.
      * ------------------------------------------------------------ */
     for (int px = x_bar_left; px <= x_bar_right; px++) {
         float t      = t_start + (float)px * t_range / (float)(DISP_W - 1);
@@ -399,7 +389,24 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
     }
 
     /* ----------------------------------------------------------------
-     * 7.  Phase 7: Tide curve — 2px spline line, full display width.
+     * 6.  Hourly dividers — 1px GRAY3 at the right edge of every column
+     *     except the last.  Top of each divider meets the spline;
+     *     bottom extends to GRAPH_BOT.  Drawn before the curve so the
+     *     2px spline line renders on top.
+     * ------------------------------------------------------------ */
+    for (int col = 0; col < num_hours - 1; col++) {
+        int   div_x  = (int)((col + 1) * col_width_f + 0.5f) - 1;
+        float t_div  = t_start + (float)div_x * t_range / (float)(DISP_W - 1);
+        float t_eval = t_div;
+        if (t_eval < tide_t[0])          t_eval = tide_t[0];
+        if (t_eval > tide_t[n_pts - 1])  t_eval = tide_t[n_pts - 1];
+        float h_div  = eval_spline(segs, n_segs, t_eval);
+        int   y_div  = graph_h_to_y(h_div, h_min, h_range);
+        fill_rect(buf, div_x, y_div, div_x, GRAPH_BOT, GRAY3);
+    }
+
+    /* ----------------------------------------------------------------
+     * 7.  Tide curve — 2px spline line, full display width.
      *     Boundary tides anchor the spline on both sides so the curve
      *     is accurate all the way to the edges.
      * ------------------------------------------------------------ */
@@ -410,37 +417,34 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
                       h_min, h_max);
 
     /* ----------------------------------------------------------------
-     * 8.  Phase 7: Peak/trough dots and 3-line labels.
+     * 8.  Peak/trough dots and 3-line labels.
      *
      *     Figma layout (all tide types):
-     *       [line 1: "H" or "L"]   ← label text
+     *       [line 1: "H" or "L"]
      *       [line 2: height        ]   (2px gap between lines)
      *       [line 3: time (H:MM)   ]
      *       ↕ 8px gap
      *       ● 16px dot (radius 8)
      *
-     *     Text is left-aligned starting 4px right of the dot's left edge,
-     *     i.e. x = dot_center_x – 4.
+     *     Text left-aligned at dot_center_x − dot_radius + 4px.
      * ------------------------------------------------------------ */
     {
         const InterFont *font = &inter_b_14;
-        int line_gap    = 2;                     /* px between text lines */
-        int dot_gap     = 8;                     /* px between text block and dot top */
-        int dot_radius  = 8;                     /* 16 px diameter per Figma */
-        int line_height = font->ascent + line_gap;  /* advance per text line */
+        int line_gap    = 2;
+        int dot_gap     = 8;
+        int dot_radius  = 8;
+        int line_height = font->ascent + line_gap;
 
         for (int i = 0; i < data->n_tides; i++) {
             const TidePoint *tp = &data->tides[i];
             float t_dot = (float)(tp->hour * 60 + tp->minute);
 
-            /* Only annotate tides visible in the graph window */
+            /* Only annotate tides within the graph window */
             if (t_dot < t_start || t_dot > t_end)
                 continue;
 
             int dot_x = graph_t_to_x(t_dot, t_start, t_range);
             int dot_y = graph_h_to_y(tp->height_ft, h_min, h_range);
-
-            /* ---- Build label strings ---- */
 
             /* Line 1: type character */
             char type_str[4];
@@ -448,10 +452,10 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
             type_str[1] = '\0';
 
             /* Line 2: height in feet+inches.
-             * Positive:  "{ft}'{in}\""     e.g. "3'5\""
-             * Negative feet=0: "-{in}\""   e.g. "-4\""
-             * Negative feet>0: "-{ft}'{in}\"" e.g. "-1'2\""          */
-            char height_str[32];  /* 32 silences GCC truncation warning */
+             * Positive:        "{ft}'{in}\""    e.g. "3'5\""
+             * Negative, ft=0:  "-{in}\""        e.g. "-4\""
+             * Negative, ft>0:  "-{ft}'{in}\""   e.g. "-1'2\""  */
+            char height_str[32];
             float h_abs = fabsf(tp->height_ft);
             int   ft    = (int)h_abs;
             int   in_v  = (int)((h_abs - (float)ft) * 12.0f + 0.5f);
@@ -466,26 +470,21 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
                 snprintf(height_str, sizeof(height_str), "%d'%d\"", ft, in_v);
             }
 
-            /* Line 3: time as H:MM (no AM/PM, matching Figma style) */
+            /* Line 3: H:MM (no AM/PM) */
             char time_str[8];
             int h12 = tp->hour % 12;
             if (h12 == 0) h12 = 12;
             snprintf(time_str, sizeof(time_str), "%d:%02d", h12, tp->minute);
 
-            /* ---- Label placement: label block is ABOVE the dot ----
-             *
-             * line3 baseline is placed dot_gap above the dot's top edge.
-             * dot top = dot_y - dot_radius
-             * line3 baseline = dot_y - dot_radius - dot_gap
-             * line2 baseline = line3 - line_height
-             * line1 baseline = line2 - line_height
-             *
-             * Clamp so line1 stays within the graph area.          */
+            /* Label block sits above the dot.
+             * line3 baseline = dot top − dot_gap
+             * line2 baseline = line3 − line_height
+             * line1 baseline = line2 − line_height
+             * Clamp so line1 stays inside the graph area.          */
             int line3_baseline = dot_y - dot_radius - dot_gap;
             int line2_baseline = line3_baseline - line_height;
             int line1_baseline = line2_baseline - line_height;
 
-            /* Clamp: push down if label would bleed above graph top */
             int min_baseline = GRAPH_TOP + font->ascent + 2;
             if (line1_baseline < min_baseline) {
                 int shift = min_baseline - line1_baseline;
@@ -494,21 +493,19 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
                 line3_baseline += shift;
             }
 
-            /* Text left-aligned at dot_left + 4px (Figma pl-[4px]) */
             int lbl_x = dot_x - dot_radius + 4;
 
             draw_str_t(buf, lbl_x, line1_baseline, type_str,   font, STATUS_TRACKING);
             draw_str_t(buf, lbl_x, line2_baseline, height_str, font, STATUS_TRACKING);
             draw_str_t(buf, lbl_x, line3_baseline, time_str,   font, STATUS_TRACKING);
 
-            /* ---- Dot (filled circle, radius 8, GRAY1) ---- */
             draw_circle(buf, dot_x, dot_y, dot_radius, GRAY1);
         }
     }
 
     /* ----------------------------------------------------------------
-     * 9.  Phase 6: Hour label in bar — white text, centered, near bottom.
-     *     Figma: inter_b_14, tracking 5.6px, GRAY4, baseline at y = 404.
+     * 9.  Hour label in current-hour bar — white text, centered.
+     *     inter_b_14, STATUS_TRACKING, GRAY4, baseline at y = 404.
      * ------------------------------------------------------------ */
     {
         int h12 = data->current_hour % 12;
