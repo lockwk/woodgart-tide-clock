@@ -114,14 +114,23 @@ void render_tide_curve(uint8_t *buf,
     float y_span = (float)(y_bot_px - y_top_px);
     float h_span = h_max - h_min;
 
+    /* Clamp bounds: never extrapolate beyond the last tide data point */
+    float t_data_start = pts_t[0];
+    float t_data_end   = pts_t[n - 1];
+
     int prev_x = -1, prev_y = -1;
 
     for (int px = x0; px <= x1; px++) {
         /* Map pixel column to time */
         float t = t_start + (float)(px - x0) * (t_end - t_start) / x_span;
 
+        /* Clamp to data range to avoid cubic extrapolation artifacts */
+        float t_eval = t;
+        if (t_eval < t_data_start) t_eval = t_data_start;
+        if (t_eval > t_data_end)   t_eval = t_data_end;
+
         /* Evaluate spline */
-        float h = eval_spline(segs, n_segs, t);
+        float h = eval_spline(segs, n_segs, t_eval);
 
         /* Map height to y pixel (higher h → smaller y) */
         float fy = (float)y_bot_px - (h - h_min) * y_span / h_span;

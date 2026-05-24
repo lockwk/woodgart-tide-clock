@@ -360,16 +360,19 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
     /* ----------------------------------------------------------------
      * 5.  Phase 6: Night fills (GRAY2) — before sunrise and after sunset.
      * ------------------------------------------------------------ */
-    fill_rect(buf,  0,        GRAPH_TOP, x_sunrise,   GRAPH_BOT, GRAY2);
-    fill_rect(buf,  x_sunset, GRAPH_TOP, DISP_W - 1,  GRAPH_BOT, GRAY2);
+    fill_rect(buf,  0,        GRAPH_TOP, x_sunrise,   GRAPH_BOT, GRAY3);
+    fill_rect(buf,  x_sunset, GRAPH_TOP, DISP_W - 1,  GRAPH_BOT, GRAY3);
 
     /* ----------------------------------------------------------------
      * 6.  Phase 6: Current-hour bar (GRAY1) — top edge follows spline.
      *     Column by column: fill from the spline height down to GRAPH_BOT.
      * ------------------------------------------------------------ */
     for (int px = x_bar_left; px <= x_bar_right; px++) {
-        float t    = t_start + (float)px * t_range / (float)(DISP_W - 1);
-        float h    = eval_spline(segs, n_segs, t);
+        float t      = t_start + (float)px * t_range / (float)(DISP_W - 1);
+        float t_eval = t;
+        if (t_eval < tide_t[0])                  t_eval = tide_t[0];
+        if (t_eval > tide_t[data->n_tides - 1])  t_eval = tide_t[data->n_tides - 1];
+        float h    = eval_spline(segs, n_segs, t_eval);
         int   y_top = graph_h_to_y(h, h_min, h_range);
         fill_rect(buf, px, y_top, px, GRAPH_BOT, GRAY1);
     }
@@ -489,7 +492,7 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
         if (h12 == 0) h12 = 12;
         const char *ampm = (data->current_hour >= 12) ? "PM" : "AM";
         char hour_label[16];
-        snprintf(hour_label, sizeof(hour_label), "%d %s", h12, ampm);
+        snprintf(hour_label, sizeof(hour_label), "%d%s", h12, ampm);
 
         int label_baseline = DIVIDER_Y2 - 16;   /* y = 404 per Figma */
         int lbl_w = inter_measure_string_tracked(&inter_b_14, hour_label,
