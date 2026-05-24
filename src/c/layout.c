@@ -628,7 +628,7 @@ void render_bottom_panels(uint8_t *buf, const ClockData *data)
         }
 
         /* ---- Tide direction icon ---- */
-        int icon_y = PANEL_TOP + 115;   /* y=535, top of icon per Figma spec */
+        int icon_y = PANEL_TOP + 112;   /* 3px up per QA */
         if (type == 'H') {
             draw_icon(buf, &icon_high_tide, cx1 - (int)icon_high_tide.Width / 2, icon_y);
         } else {
