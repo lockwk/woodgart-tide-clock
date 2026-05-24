@@ -386,6 +386,32 @@ int parse_clock_data(const char *json, ClockData *out)
     v = find_value(json, "moon_age");
     out->moon_age = (float)extract_double(v);
 
+    /* ---- Boundary tides for spline ---- */
+    {
+        const char *obj = find_object(json, "prev_tide");
+        if (obj) {
+            out->has_prev_tide = 1;
+            v = find_value(obj, "t_min");
+            out->prev_tide_t_min = (float)extract_double(v);
+            v = find_value(obj, "height_ft");
+            out->prev_tide_height_ft = (float)extract_double(v);
+            v = find_value(obj, "type");
+            out->prev_tide_type = extract_char_from_string(v);
+        }
+    }
+    {
+        const char *obj = find_object(json, "next_tide_after");
+        if (obj) {
+            out->has_next_tide_after = 1;
+            v = find_value(obj, "t_min");
+            out->next_tide_after_t_min = (float)extract_double(v);
+            v = find_value(obj, "height_ft");
+            out->next_tide_after_height_ft = (float)extract_double(v);
+            v = find_value(obj, "type");
+            out->next_tide_after_type = extract_char_from_string(v);
+        }
+    }
+
     /* Required field check — current_time_str is a good sentinel */
     if (out->current_time_str[0] == '\0') {
         fprintf(stderr, "json_reader: required field 'current_time_str' missing\n");

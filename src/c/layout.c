@@ -332,15 +332,36 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
 
     /* ----------------------------------------------------------------
      * 3.  Control point arrays for the spline.
+     *
+     *     Prepend yesterday's last tide (prev_tide) and append
+     *     tomorrow's first tide (next_tide_after) when available.
+     *     Their t_min values are in minutes from today's midnight:
+     *     negative for yesterday, > 1440 for tomorrow.  This anchors
+     *     the spline with real data on both sides so the curve is
+     *     accurate across the full display width.
      * ------------------------------------------------------------ */
-    float tide_t[MAX_TIDES], tide_h[MAX_TIDES];
-    for (int i = 0; i < data->n_tides; i++) {
-        tide_t[i] = (float)(data->tides[i].hour * 60 + data->tides[i].minute);
-        tide_h[i] = data->tides[i].height_ft;
+    float tide_t[MAX_TIDES + 2], tide_h[MAX_TIDES + 2];
+    int n_pts = 0;
+
+    if (data->has_prev_tide) {
+        tide_t[n_pts] = data->prev_tide_t_min;
+        tide_h[n_pts] = data->prev_tide_height_ft;
+        n_pts++;
     }
-    SplineSeg segs[MAX_TIDES - 1];
-    compute_spline(tide_t, tide_h, data->n_tides, segs);
-    int n_segs = data->n_tides - 1;
+    for (int i = 0; i < data->n_tides; i++) {
+        tide_t[n_pts] = (float)(data->tides[i].hour * 60 + data->tides[i].minute);
+        tide_h[n_pts] = data->tides[i].height_ft;
+        n_pts++;
+    }
+    if (data->has_next_tide_after) {
+        tide_t[n_pts] = data->next_tide_after_t_min;
+        tide_h[n_pts] = data->next_tide_after_height_ft;
+        n_pts++;
+    }
+
+    SplineSeg segs[MAX_TIDES + 1];
+    compute_spline(tide_t, tide_h, n_pts, segs);
+    int n_segs = n_pts - 1;
 
     /* ----------------------------------------------------------------
      * 4.  Pixel positions for sunrise, sunset, and current time.
@@ -370,17 +391,19 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
     for (int px = x_bar_left; px <= x_bar_right; px++) {
         float t      = t_start + (float)px * t_range / (float)(DISP_W - 1);
         float t_eval = t;
-        if (t_eval < tide_t[0])                  t_eval = tide_t[0];
-        if (t_eval > tide_t[data->n_tides - 1])  t_eval = tide_t[data->n_tides - 1];
+        if (t_eval < tide_t[0])          t_eval = tide_t[0];
+        if (t_eval > tide_t[n_pts - 1])  t_eval = tide_t[n_pts - 1];
         float h    = eval_spline(segs, n_segs, t_eval);
         int   y_top = graph_h_to_y(h, h_min, h_range);
         fill_rect(buf, px, y_top, px, GRAPH_BOT, GRAY1);
     }
 
     /* ----------------------------------------------------------------
-     * 7.  Phase 7: Tide curve — 2px spline line on top of the bar.
+     * 7.  Phase 7: Tide curve — 2px spline line, full display width.
+     *     Boundary tides anchor the spline on both sides so the curve
+     *     is accurate all the way to the edges.
      * ------------------------------------------------------------ */
-    render_tide_curve(buf, tide_t, tide_h, data->n_tides,
+    render_tide_curve(buf, tide_t, tide_h, n_pts,
                       t_start, t_end,
                       0, DISP_W - 1,
                       CURVE_TOP_Y, CURVE_BOT_Y,

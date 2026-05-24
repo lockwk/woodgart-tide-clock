@@ -187,11 +187,36 @@ def fetch_tides(tz, now):
                 'type':           next_raw['type'],
             }
 
-        log.info('✓ Tides: %d today, next → %s', len(tides_today), next_tide)
+        # Boundary tides for spline continuity across the full display width.
+        # prev_tide  = last tide before today (yesterday's final hi/lo).
+        # next_tide_after = first tide after today (tomorrow's first hi/lo).
+        # t_min is minutes from today's midnight: negative for yesterday,
+        # > 1440 for tomorrow.  The C renderer uses these as spline anchors.
+        before_today = [t for t in all_tides if t['_dt'].date() < today]
+        after_today  = [t for t in all_tides if t['_dt'].date() > today]
+
+        prev_raw  = before_today[-1] if before_today else None
+        after_raw = after_today[0]   if after_today  else None
+
+        def _boundary_dict(raw, day_offset):
+            return {
+                'time_str':  raw['time_str'],
+                'hour':      raw['hour'],
+                'minute':    raw['minute'],
+                'height_ft': raw['height_ft'],
+                'type':      raw['type'],
+                't_min':     float(raw['hour'] * 60 + raw['minute'] + day_offset * 1440),
+            }
+
+        prev_tide_out  = _boundary_dict(prev_raw,  -1) if prev_raw  else None
+        next_after_out = _boundary_dict(after_raw, +1) if after_raw else None
+
+        log.info('✓ Tides: %d today, prev → %s, next_after → %s',
+                 len(tides_today), prev_tide_out, next_after_out)
 
         # Strip the internal _dt key before returning
         tides_out = [{k: v for k, v in t.items() if k != '_dt'} for t in tides_today]
-        return tides_out, next_tide
+        return tides_out, next_tide, prev_tide_out, next_after_out
 
     except Exception as e:
         log.warning('Tides fetch failed: %s', e)
@@ -368,7 +393,7 @@ def main():
 
     log.info('Fetching data for %s ...', now.strftime('%Y-%m-%d %H:%M %Z'))
 
-    tides, next_tide                        = fetch_tides(tz, now)
+    tides, next_tide, prev_tide, next_tide_after = fetch_tides(tz, now)
     wind_mph, wind_dir, water_temp          = fetch_weather()
     rain_hours                              = fetch_rain(tz, now)
     sr_h, sr_m, sr_str, ss_h, ss_m, ss_str = fetch_sunrise_sunset(tz)
@@ -384,8 +409,10 @@ def main():
         'current_hour':     now.hour,
         'current_minute':   now.minute,
 
-        'tides':     tides,
-        'next_tide': next_tide,
+        'tides':           tides,
+        'next_tide':       next_tide,
+        'prev_tide':       prev_tide,
+        'next_tide_after': next_tide_after,
 
         'tide_cycle': tide_cycle,
 

@@ -14,7 +14,7 @@
  * Must be > MAX_TIDES (from json_reader.h, via layout.h) so all daily tide
  * events fit.  The solver needs arrays of size n (not n-1), so +1.
  */
-#define SPLINE_MAX_N  (MAX_TIDES + 1)
+#define SPLINE_MAX_N  (MAX_TIDES + 3)   /* today's tides + prev + next + 1 */
 
 /* --------------------------------------------------------------------------
  * compute_spline — natural cubic spline through n control points.

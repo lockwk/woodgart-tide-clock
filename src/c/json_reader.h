@@ -77,6 +77,26 @@ typedef struct {
     char  moon_phase[24];         /* "NEW", "FULL", "WAXING_CRESCENT", etc. */
     float moon_age;               /* days into current cycle, 0.0–29.5      */
 
+    /* ---- Boundary tides for spline (from yesterday / tomorrow) ----
+     *
+     * Including the tide immediately before and after today's tides as
+     * extra spline control points lets the curve be drawn accurately
+     * across the full display width without any extrapolation artifacts.
+     *
+     * t_min is minutes from today's midnight:
+     *   prev_tide_t_min  < 0      (yesterday's last tide)
+     *   next_tide_after_t_min > 1440  (tomorrow's first tide)
+     */
+    int   has_prev_tide;
+    float prev_tide_t_min;
+    float prev_tide_height_ft;
+    char  prev_tide_type;
+
+    int   has_next_tide_after;
+    float next_tide_after_t_min;
+    float next_tide_after_height_ft;
+    char  next_tide_after_type;
+
 } ClockData;
 
 /* --------------------------------------------------------------------------
