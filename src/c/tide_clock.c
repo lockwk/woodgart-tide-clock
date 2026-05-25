@@ -241,7 +241,8 @@ int main(void)
         printf("tide_clock: pushing to display...\n");
         EPD_13IN3K_Init_4GRAY();           /* re-init before each 4-gray push */
         EPD_13IN3K_4GrayDisplay(buf);
-        printf("tide_clock: display updated.\n");
+        EPD_13IN3K_Sleep();                /* sleep display between refreshes  */
+        printf("tide_clock: display updated and sleeping.\n");
     }
 
     /* ------------------------------------------------------------------
