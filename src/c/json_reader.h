@@ -52,6 +52,7 @@ typedef struct {
     char  next_tide_time_str[16]; /* "1:17 PM"                      */
     int   next_tide_height_whole_ft; /* integer feet part, e.g. 1  */
     int   next_tide_height_rem_in;   /* remaining inches, e.g. 3   */
+    int   next_tide_height_negative; /* 1 if height < 0, else 0    */
     char  next_tide_type;         /* 'H' or 'L'                     */
 
     /* ---- Tide cycle ---- */

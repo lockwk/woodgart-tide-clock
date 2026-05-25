@@ -181,10 +181,11 @@ def fetch_tides(tz, now):
         if next_raw:
             whole, rem = height_to_whole_rem(next_raw['height_ft'])
             next_tide = {
-                'time_str':       next_raw['time_str'],
+                'time_str':        next_raw['time_str'],
                 'height_whole_ft': whole,
-                'height_rem_in':  rem,
-                'type':           next_raw['type'],
+                'height_rem_in':   rem,
+                'height_negative': 1 if next_raw['height_ft'] < 0 else 0,
+                'type':            next_raw['type'],
             }
 
         # Boundary tides for spline continuity across the full display width.

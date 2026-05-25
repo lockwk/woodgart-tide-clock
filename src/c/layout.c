@@ -615,15 +615,28 @@ void render_bottom_panels(uint8_t *buf, const ClockData *data)
             draw_str(buf, x, num_baseline, num2_buf, f40);   x += w_num2 + 8;
             draw_str_t(buf, x, unit_baseline, "IN", f14, STATUS_TRACKING);
         } else {
-            /* feet=0: show "[Y] IN" only */
-            char rem_buf[16];
-            snprintf(rem_buf, sizeof(rem_buf), "%d", rem);
-            int w_num = inter_measure_string(f40, rem_buf);
-            int w_in  = inter_measure_string_tracked(f14, "IN", STATUS_TRACKING);
-            int total_w = w_num + 8 + w_in;
+            /* feet=0: show "0 FT [Y] IN" (or "-0 FT [Y] IN" if negative) */
+            int is_neg = data->next_tide_height_negative;
+            char num2_buf[16];
+            snprintf(num2_buf, sizeof(num2_buf), "%d", rem);
+
+            int w_neg  = is_neg ? inter_measure_string(f40, "-") : 0;
+            int w_num1 = inter_measure_string(f40, "0");
+            int w_ft   = inter_measure_string_tracked(f14, "FT", STATUS_TRACKING);
+            int w_num2 = inter_measure_string(f40, num2_buf);
+            int w_in   = inter_measure_string_tracked(f14, "IN", STATUS_TRACKING);
+
+            int total_w = w_neg + w_num1 + 11 + w_ft + 16 + w_num2 + 8 + w_in;
             int x = cx1 - total_w / 2;
-            draw_str(buf, x, num_baseline, rem_buf, f40);
-            x += w_num + 8;
+
+            if (is_neg) {
+                draw_str(buf, x, num_baseline, "-", f40);
+                x += w_neg;
+            }
+            draw_str(buf, x, num_baseline, "0", f40);        x += w_num1 + 11;
+            draw_str_t(buf, x, unit_baseline, "FT", f14, STATUS_TRACKING);
+            x += w_ft + 16;
+            draw_str(buf, x, num_baseline, num2_buf, f40);   x += w_num2 + 8;
             draw_str_t(buf, x, unit_baseline, "IN", f14, STATUS_TRACKING);
         }
 

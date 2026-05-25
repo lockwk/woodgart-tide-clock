@@ -338,6 +338,9 @@ int parse_clock_data(const char *json, ClockData *out)
             v = find_value(obj, "height_rem_in");
             out->next_tide_height_rem_in = extract_int(v);
 
+            v = find_value(obj, "height_negative");
+            out->next_tide_height_negative = extract_int(v);
+
             v = find_value(obj, "type");
             out->next_tide_type = extract_char_from_string(v);
         }
