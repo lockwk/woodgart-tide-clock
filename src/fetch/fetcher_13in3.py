@@ -445,7 +445,9 @@ def main():
         'moon_age':   round(moon_age, 1),
     }
 
-    OUTPUT_PATH.write_text(json.dumps(payload, indent=2))
+    tmp = OUTPUT_PATH.with_suffix('.tmp')
+    tmp.write_text(json.dumps(payload, indent=2))
+    tmp.replace(OUTPUT_PATH)
     log.info('✓ Written → %s', OUTPUT_PATH)
 
 
