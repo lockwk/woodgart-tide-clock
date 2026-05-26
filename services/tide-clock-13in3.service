@@ -8,8 +8,8 @@ Wants=network-online.target
 Type=simple
 # lgpio requires root for GPIO/SPI access
 User=root
-WorkingDirectory=/home/pi/tide-clock-dev/src/c
-ExecStart=/home/pi/tide-clock-dev/src/c/epd
+WorkingDirectory=/home/pi/tide-clock/src/c
+ExecStart=/home/pi/tide-clock/src/c/epd
 # Restart on crash with a 30-second backoff
 Restart=on-failure
 RestartSec=30
