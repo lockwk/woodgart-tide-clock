@@ -17,3 +17,12 @@ venv/
 *.tmp
 last-raw-image.png
 last-dithered-image.png
+
+# Test scripts, compiled binaries, and test renders (not for version control)
+test/
+
+# Editor config
+.obsidian/
+
+# Large reference PDFs (available on Waveshare website)
+docs/*.pdf

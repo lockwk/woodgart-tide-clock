@@ -4,8 +4,7 @@ A Raspberry Pi-powered tide clock using Waveshare e-paper displays.
 Renders tide data, moon phase, weather, and sea conditions on a 6-color ACeP e-paper panel.
 
 ## Supported Displays
-- **7.3inch e-Paper HAT (E)** — 800×480, 6-color
-- **13.3inch e-Paper HAT+ (E)** — 1600×1200, 6-color
+- **13.3inch e-Paper HAT (K)** — 1600×1200, 6-color
 
 ## Configuration
 Edit `config.py` to set your display and theme before running.
