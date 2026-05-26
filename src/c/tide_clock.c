@@ -47,7 +47,7 @@
 
 /* Shell command that writes /tmp/tide_data.json */
 #define FETCHER_CMD \
-    "python3 /home/pi/tide-clock-dev/src/fetch/fetcher_13in3.py"
+    "python3 /home/pi/tide-clock/src/fetch/fetcher_13in3.py"
 
 #define JSON_PATH  "/tmp/tide_data.json"
 
