@@ -215,10 +215,10 @@ void render_status_bar(uint8_t *buf, const ClockData *data)
     /*
      * Build right-to-left so each item's right edge butts against the
      * previous one.  Order (right to left): water temp, wind, rain.
-     * rain is conditional — only shown when 1 <= rain_hours_since <= 72.
+     * rain is conditional — only shown when 0 <= rain_hours_since <= 72.
      */
 
-    int show_rain = (data->rain_hours_since >= 1 &&
+    int show_rain = (data->rain_hours_since >= 0 &&
                      data->rain_hours_since <= 72);
 
     /* water temp — always shown, rightmost */
@@ -238,7 +238,10 @@ void render_status_bar(uint8_t *buf, const ClockData *data)
     char rain_buf[24];
     int w_rain = 0;
     if (show_rain) {
-        snprintf(rain_buf, sizeof(rain_buf), "%d HRS", data->rain_hours_since);
+        if (data->rain_hours_since == 0)
+            snprintf(rain_buf, sizeof(rain_buf), "< 1 HR");
+        else
+            snprintf(rain_buf, sizeof(rain_buf), "%d HRS", data->rain_hours_since);
         int w_rain_text = inter_measure_string_tracked(font, rain_buf, STATUS_TRACKING);
         w_rain = icon_rain.Width + icon_gap + w_rain_text;
     }
