@@ -27,6 +27,7 @@
 #include <string.h>
 #include <signal.h>
 #include <time.h>
+#include <unistd.h>
 
 /* Waveshare driver headers (resolved via -I flags in Makefile) */
 #include "DEV_Config.h"
@@ -44,10 +45,6 @@
 /* ==========================================================================
  * Configuration
  * ======================================================================= */
-
-/* Shell command that writes /tmp/tide_data.json */
-#define FETCHER_CMD \
-    "python3 /home/pi/tide-clock/src/fetch/fetcher_13in3.py"
 
 #define JSON_PATH  "/tmp/tide_data.json"
 
@@ -217,8 +214,27 @@ int main(void)
         first_run = 0;
 
         /* ---- Run fetcher ------------------------------------------ */
-        printf("tide_clock: running fetcher...\n");
-        int fetch_ret = system(FETCHER_CMD);
+        /* Derive the fetcher path from the binary's own location so this
+         * works in any branch (main, dev, playground) without recompiling. */
+        char fetcher_cmd[512];
+        {
+            char exe[256];
+            ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+            if (n < 0) {
+                fprintf(stderr, "ERROR: readlink /proc/self/exe failed\n");
+                break;
+            }
+            exe[n] = '\0';
+            /* exe = <repo>/src/c/epd — strip three path components */
+            char *p;
+            p = strrchr(exe, '/'); if (p) *p = '\0'; /* strip /epd  */
+            p = strrchr(exe, '/'); if (p) *p = '\0'; /* strip /c    */
+            p = strrchr(exe, '/'); if (p) *p = '\0'; /* strip /src  */
+            snprintf(fetcher_cmd, sizeof(fetcher_cmd),
+                     "python3 %s/src/fetch/fetcher_13in3.py", exe);
+        }
+        printf("tide_clock: running fetcher: %s\n", fetcher_cmd);
+        int fetch_ret = system(fetcher_cmd);
         if (fetch_ret != 0)
             fprintf(stderr, "WARNING: fetcher exited with status %d\n",
                     fetch_ret);

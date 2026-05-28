@@ -1,5 +1,5 @@
 [Unit]
-Description=13.3" Tide Clock E-Paper Display (production / main)
+Description=13.3" Tide Clock E-Paper Display (dev / testing)
 # Wait for network so the fetcher can reach the tide/weather APIs
 After=network-online.target
 Wants=network-online.target
@@ -8,12 +8,12 @@ Wants=network-online.target
 Type=simple
 # lgpio requires root for GPIO/SPI access
 User=root
-WorkingDirectory=/home/pi/tide-clock/src/c
-ExecStart=/home/pi/tide-clock/src/c/epd
+WorkingDirectory=/home/pi/tide-clock-dev/src/c
+ExecStart=/home/pi/tide-clock-dev/src/c/epd
 # Restart on crash with a 30-second backoff
 Restart=on-failure
 RestartSec=30
-# Route stdout/stderr to the systemd journal (read with: journalctl -u tide-clock-13in3 -f)
+# Route stdout/stderr to the systemd journal (read with: journalctl -u tide-clock-13in3-dev -f)
 StandardOutput=journal
 StandardError=journal
 

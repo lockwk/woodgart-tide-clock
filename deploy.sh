@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
-# deploy.sh — run this on the Pi to pull latest code, rebuild, and restart the service.
+# deploy.sh — pull latest main, rebuild, and restart the production service.
 #
 # Usage:
-#   chmod +x deploy.sh   (first time only)
 #   ./deploy.sh
 
 set -e  # exit immediately on any error
 
-REPO_DIR="/home/pi/tide-clock-dev"
+REPO_DIR="/home/pi/tide-clock"
 SRC_DIR="$REPO_DIR/src/c"
 SERVICE_NAME="tide-clock-13in3"
 SERVICE_SRC="$REPO_DIR/services/$SERVICE_NAME.service"
 SERVICE_DEST="/etc/systemd/system/$SERVICE_NAME.service"
 
-echo "==> Pulling latest code..."
+echo "==> Pulling latest code (main)..."
 cd "$REPO_DIR"
 git pull
 
