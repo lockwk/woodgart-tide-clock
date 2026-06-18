@@ -365,7 +365,7 @@ int parse_clock_data(const char *json, ClockData *out)
 
     /* ---- Sun ---- */
     v = find_value(json, "sunrise_hour");
-    out->sunrise_hour   = extract_int(v);
+    out->sunrise_hour   = (v && strncmp(v, "null", 4) == 0) ? -1 : extract_int(v);
 
     v = find_value(json, "sunrise_minute");
     out->sunrise_minute = extract_int(v);
@@ -374,7 +374,7 @@ int parse_clock_data(const char *json, ClockData *out)
     extract_string(v, out->sunrise_str, sizeof(out->sunrise_str));
 
     v = find_value(json, "sunset_hour");
-    out->sunset_hour   = extract_int(v);
+    out->sunset_hour   = (v && strncmp(v, "null", 4) == 0) ? -1 : extract_int(v);
 
     v = find_value(json, "sunset_minute");
     out->sunset_minute = extract_int(v);

@@ -401,6 +401,24 @@ def fetch_sunrise_sunset(tz):
 #  Main
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _recover_sunrise_sunset_from_previous():
+    """Read sunrise/sunset from the previous JSON output on API failure."""
+    try:
+        prev = json.loads(OUTPUT_PATH.read_text())
+        sr_h = prev.get('sunrise_hour')
+        sr_m = prev.get('sunrise_minute')
+        sr_s = prev.get('sunrise_str')
+        ss_h = prev.get('sunset_hour')
+        ss_m = prev.get('sunset_minute')
+        ss_s = prev.get('sunset_str')
+        if sr_h is not None and ss_h is not None:
+            log.info('↻ Reusing previous sunrise/sunset: %s / %s', sr_s, ss_s)
+            return sr_h, sr_m, sr_s, ss_h, ss_m, ss_s
+    except Exception:
+        pass
+    return None, None, None, None, None, None
+
+
 def main():
     tz  = ZoneInfo(TIMEZONE)
     now = datetime.now(tz)
@@ -411,6 +429,9 @@ def main():
     wind_mph, wind_dir, water_temp          = fetch_weather()
     rain_hours                              = fetch_rain(tz, now)
     sr_h, sr_m, sr_str, ss_h, ss_m, ss_str = fetch_sunrise_sunset(tz)
+
+    if sr_h is None:
+        sr_h, sr_m, sr_str, ss_h, ss_m, ss_str = _recover_sunrise_sunset_from_previous()
 
     moon_age   = compute_moon_age(now)
     moon_phase = moon_phase_key(moon_age)

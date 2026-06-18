@@ -329,7 +329,7 @@ void render_tide_graph(uint8_t *buf, const ClockData *data)
     int start_hour  = data->sunrise_hour;
     int end_hour    = data->sunset_hour;
     int num_hours   = end_hour - start_hour + 1;
-    if (num_hours < 1) return;
+    if (num_hours < 2 || start_hour < 0 || end_hour < 0 || end_hour <= start_hour) return;
 
     float col_width_f = (float)DISP_W / (float)num_hours;
     float t_start     = (float)(start_hour * 60);
