@@ -46,7 +46,7 @@ TARGET := epd
 # Primary targets
 # -----------------------------------------------------------------------------
 
-.PHONY: all RPI clean fidelity_test
+.PHONY: all RPI clean fidelity_test epd_clear
 
 # `make RPI` is the standard build command documented in the plan.
 # It's an alias for `all` -- the Pi-specific flags are always included.
@@ -67,5 +67,9 @@ FIDELITY_SRCS := fidelity_test.c \
 fidelity_test: $(FIDELITY_SRCS)
 	$(CC) $(CFLAGS) $(PI_DEFS) $^ $(PI_LIBS) $(LDFLAGS) -o $@
 
+# Burn-in clearing utility (cycles black/white to clear ghosting)
+epd_clear: epd_clear.c $(WS_SRCS)
+	$(CC) $(CFLAGS) $(PI_DEFS) $^ $(PI_LIBS) $(LDFLAGS) -o $@
+
 clean:
-	rm -f $(TARGET) fidelity_test *.o
+	rm -f $(TARGET) fidelity_test epd_clear *.o
